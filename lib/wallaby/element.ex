@@ -28,7 +28,7 @@ defmodule Wallaby.Element do
   alias Wallaby.InvalidSelectorError
   alias Wallaby.StaleReferenceError
 
-  defstruct [:url, :session_url, :parent, :id, :driver, screenshots: []]
+  defstruct [:url, :session_url, :parent, :id, :driver, :client, screenshots: []]
 
   @type value ::
           String.t()
@@ -42,7 +42,8 @@ defmodule Wallaby.Element do
           url: String.t(),
           id: String.t(),
           screenshots: list,
-          driver: module
+          driver: module,
+          client: module
         }
 
   @doc """

@@ -1,4 +1,4 @@
-defmodule Wallaby.WebdriverClient do
+defmodule Wallaby.Webdriver.JWPClient do
   @moduledoc false
   # Client implementation for the WebDriver Wire Protocol
   # documented on https://github.com/SeleniumHQ/selenium/wiki/JsonWireProtocol
@@ -8,6 +8,7 @@ defmodule Wallaby.WebdriverClient do
 
   @type http_method :: :post | :get | :delete
   @type url :: String.t()
+  @type session_id :: String.t()
   @type parent ::
           Element.t()
           | Session.t()
@@ -17,11 +18,13 @@ defmodule Wallaby.WebdriverClient do
   @doc """
   Create a session with the base url.
   """
-  @spec create_session(String.t(), map) :: {:ok, map}
+  @spec create_session(String.t(), map) :: {:ok, session_id}
   def create_session(base_url, capabilities) do
     params = %{desiredCapabilities: capabilities}
 
-    request(:post, "#{base_url}session", params)
+    with {:ok, response} <- request(:post, "#{base_url}session", params) do
+      Map.fetch(response, "sessionId")
+    end
   end
 
   @doc """
@@ -674,7 +677,8 @@ defmodule Wallaby.WebdriverClient do
       session_url: parent.session_url,
       url: parent.session_url <> "/element/#{id}",
       parent: parent,
-      driver: parent.driver
+      driver: parent.driver,
+      client: parent.client
     }
   end
 

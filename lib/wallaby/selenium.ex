@@ -55,6 +55,7 @@ defmodule Wallaby.Selenium do
   alias Wallaby.Metadata
   alias Wallaby.WebdriverClient
   alias Wallaby.{Driver, Element, Session}
+  alias Wallaby.Webdriver.{JWPClient, W3CClient}
 
   @typedoc """
   Options to pass to Wallaby.start_session/1
@@ -89,17 +90,17 @@ defmodule Wallaby.Selenium do
   @spec start_session([start_session_opts]) :: Wallaby.Driver.on_start_session() | no_return
   def start_session(opts \\ []) do
     base_url = Keyword.get(opts, :remote_url, "http://localhost:4444/wd/hub/")
-    create_session = Keyword.get(opts, :create_session_fn, &WebdriverClient.create_session/2)
+    client = Keyword.get(opts, :client, JWPClient)
+    create_session = Keyword.get(opts, :create_session_fn, &client.create_session/2)
     capabilities = Keyword.get(opts, :capabilities, capabilities_from_config(opts))
 
-    with {:ok, response} <- create_session.(base_url, capabilities) do
-      id = response["sessionId"]
-
+    with {:ok, session_id} <- create_session.(base_url, capabilities) do
       session = %Session{
-        session_url: base_url <> "session/#{id}",
-        url: base_url <> "session/#{id}",
-        id: id,
+        session_url: base_url <> "session/#{session_id}",
+        url: base_url <> "session/#{session_id}",
+        id: session_id,
         driver: __MODULE__,
+        client: client,
         capabilities: capabilities
       }
 
@@ -118,8 +119,8 @@ defmodule Wallaby.Selenium do
 
   @doc false
   @spec end_session(Session.t()) :: :ok
-  def end_session(session) do
-    WebdriverClient.delete_session(session)
+  def end_session(%{client: client} = session) do
+    client.delete_session(session)
     :ok
   end
 
@@ -135,164 +136,159 @@ defmodule Wallaby.Selenium do
   end
 
   @doc false
-  defdelegate window_handle(session), to: WebdriverClient
-  @doc false
-  defdelegate window_handles(session), to: WebdriverClient
-  @doc false
-  defdelegate focus_window(session, window_handle), to: WebdriverClient
-  @doc false
-  defdelegate close_window(session), to: WebdriverClient
-  @doc false
-  defdelegate get_window_size(session), to: WebdriverClient
-  @doc false
-  defdelegate set_window_size(session, width, height), to: WebdriverClient
-  @doc false
-  defdelegate get_window_position(session), to: WebdriverClient
-  @doc false
-  defdelegate set_window_position(session, x, y), to: WebdriverClient
-  @doc false
-  defdelegate maximize_window(session), to: WebdriverClient
+  # defdelegate window_handle(session), to: session.client
+  def window_handle(%{client: client} = session), do: client.window_handle(session)
 
   @doc false
-  defdelegate focus_frame(session, frame), to: WebdriverClient
-  @doc false
-  defdelegate focus_parent_frame(session), to: WebdriverClient
+  # defdelegate window_handles(session), to: session.client
+  def window_handles(%{client: client} = session), do: client.window_handles(session)
 
   @doc false
-  defdelegate accept_alert(session, fun), to: WebdriverClient
-  @doc false
-  defdelegate dismiss_alert(session, fun), to: WebdriverClient
-  @doc false
-  defdelegate accept_confirm(session, fun), to: WebdriverClient
-  @doc false
-  defdelegate dismiss_confirm(session, fun), to: WebdriverClient
-  @doc false
-  defdelegate accept_prompt(session, input, fun), to: WebdriverClient
-  @doc false
-  defdelegate dismiss_prompt(session, fun), to: WebdriverClient
+  # defdelegate focus_window(session, window_handle), to: WebdriverClient
+  def focus_window(%{client: client} = session), do: client.focus_window(session)
 
   @doc false
-  defdelegate take_screenshot(session_or_element), to: WebdriverClient
+  # defdelegate close_window(session), to: WebdriverClient
+  def close_window(%{client: client} = session), do: client.close_window(session)
 
   @doc false
-  def cookies(%Session{} = session) do
-    WebdriverClient.cookies(session)
-  end
+  # defdelegate get_window_size(session), to: WebdriverClient
+  def get_window_size(%{client: client} = session), do: client.get_window_size(session)
 
   @doc false
-  def current_path(%Session{} = session) do
-    with {:ok, url} <- WebdriverClient.current_url(session),
+  # defdelegate set_window_size(session, width, height), to: WebdriverClient
+  def set_window_size(%{client: client} = session, width, height),
+    do: client.set_window_size(session, width, height)
+
+  @doc false
+  # defdelegate get_window_position(session), to: WebdriverClient
+  def get_window_position(%{client: client} = session), do: client.get_window_position(session)
+
+  @doc false
+  # defdelegate set_window_position(session, x, y), to: WebdriverClient
+  def set_window_position(%{client: client} = session, x, y),
+    do: client.set_window_position(session, x, y)
+
+  @doc false
+  # defdelegate maximize_window(session), to: WebdriverClient
+  def maximize_window(%{client: client} = session), do: client.maximize_window(session)
+
+  @doc false
+  # defdelegate focus_frame(session, frame), to: WebdriverClient
+  def focus_frame(%{client: client} = session, frame), do: client.focus_frame(session, frame)
+
+  @doc false
+  # defdelegate focus_parent_frame(session), to: WebdriverClient
+  def focus_parent_frame(%{client: client} = session), do: client.focus_parent_frame(session)
+
+  @doc false
+  # defdelegate accept_alert(session, fun), to: WebdriverClient
+  def accept_alert(%{client: client} = session, fun), do: client.accept_alert(session, fun)
+
+  @doc false
+  # defdelegate dismiss_alert(session, fun), to: WebdriverClient
+  def dismiss_alert(%{client: client} = session, fun), do: client.dismiss_alert(session, fun)
+
+  @doc false
+  # defdelegate accept_confirm(session, fun), to: WebdriverClient
+  def accept_confirm(%{client: client} = session, fun), do: client.accept_confirm(session, fun)
+
+  @doc false
+  # defdelegate dismiss_confirm(session, fun), to: WebdriverClient
+  def dismiss_confirm(%{client: client} = session, fun), do: client.dismiss_confirm(session, fun)
+
+  @doc false
+  # defdelegate accept_prompt(session, input, fun), to: WebdriverClient
+  def accept_prompt(%{client: client} = session, fun), do: client.accept_prompt(session, fun)
+
+  @doc false
+  # defdelegate dismiss_prompt(session, fun), to: WebdriverClient
+  def dismiss_prompt(%{client: client} = session, fun), do: client.dismiss_prompt(session, fun)
+
+  @doc false
+  # defdelegate take_screenshot(session_or_element), to: WebdriverClient
+  def take_screenshot(%{client: client} = session, fun), do: client.take_screenshot(session, fun)
+
+  @doc false
+  def cookies(%{client: client} = session), do: client.cookies(session)
+
+  @doc false
+  def current_path(%Session{client: client} = session) do
+    with {:ok, url} <- client.current_url(session),
          uri <- URI.parse(url),
          {:ok, path} <- Map.fetch(uri, :path),
          do: {:ok, path}
   end
 
   @doc false
-  def current_url(%Session{} = session) do
-    WebdriverClient.current_url(session)
-  end
+  def current_url(%{client: client} = session), do: client.current_url(session)
 
   @doc false
-  def page_source(%Session{} = session) do
-    WebdriverClient.page_source(session)
-  end
+  def page_source(%{client: client} = session), do: client.page_source(session)
 
   @doc false
-  def page_title(%Session{} = session) do
-    WebdriverClient.page_title(session)
-  end
+  def page_title(%{client: client} = session), do: client.page_title(session)
 
   @doc false
-  def set_cookie(%Session{} = session, key, value) do
-    WebdriverClient.set_cookie(session, key, value)
-  end
+  def set_cookie(%{client: client} = session, key, value),
+    do: client.set_cookie(session, key, value)
 
   @doc false
-  def visit(%Session{} = session, path) do
-    WebdriverClient.visit(session, path)
-  end
+  def visit(%{client: client} = session, path), do: client.visit(session, path)
 
   @doc false
-  def attribute(%Element{} = element, name) do
-    WebdriverClient.attribute(element, name)
-  end
+  def attribute(%Element{client: client} = element, name), do: client.attribute(element, name)
 
   @doc false
   @spec clear(Element.t()) :: {:ok, nil} | {:error, Driver.reason()}
-  def clear(%Element{} = element) do
-    WebdriverClient.clear(element)
-  end
+  def clear(%Element{client: client} = element), do: client.clear(element)
 
   @doc false
-  def click(%Element{} = element) do
-    WebdriverClient.click(element)
-  end
+  def click(%Element{client: client} = element), do: client.click(element)
 
   @doc false
-  def click(parent, button) do
-    WebdriverClient.click(parent, button)
-  end
+  def click(%{client: client} = parent, button), do: client.click(parent, button)
 
   @doc false
-  def button_down(parent, button) do
-    WebdriverClient.button_down(parent, button)
-  end
+  def button_down(%{client: client} = parent, button), do: client.button_down(parent, button)
 
   @doc false
-  def button_up(parent, button) do
-    WebdriverClient.button_up(parent, button)
-  end
+  def button_up(%{client: client} = parent, button), do: client.button_up(parent, button)
 
   @doc false
-  def double_click(parent) do
-    WebdriverClient.double_click(parent)
-  end
+  def double_click(%{client: client} = parent), do: client.double_click(parent)
 
   @doc false
-  def hover(%Element{} = element) do
-    WebdriverClient.move_mouse_to(nil, element)
-  end
+  def hover(%Element{client: client} = element), do: client.move_mouse_to(nil, element)
 
   @doc false
-  def move_mouse_by(session, x_offset, y_offset) do
-    WebdriverClient.move_mouse_to(session, nil, x_offset, y_offset)
-  end
+  def move_mouse_by(%{client: client} = session, x_offset, y_offset),
+    do: client.move_mouse_to(session, nil, x_offset, y_offset)
 
   @doc false
-  def displayed(%Element{} = element) do
-    WebdriverClient.displayed(element)
-  end
+  def displayed(%Element{client: client} = element), do: client.displayed(element)
 
   @doc false
-  def selected(%Element{} = element) do
-    WebdriverClient.selected(element)
-  end
+  def selected(%Element{client: client} = element), do: client.selected(element)
 
   @doc false
   @spec set_value(Element.t(), String.t()) :: {:ok, nil} | {:error, Driver.reason()}
-  def set_value(%Element{} = element, value) do
-    WebdriverClient.set_value(element, value)
-  end
+  def set_value(%Element{client: client} = element, value), do: client.set_value(element, value)
 
   @doc false
-  def text(%Element{} = element) do
-    WebdriverClient.text(element)
-  end
+  def text(%Element{client: client} = element), do: client.text(element)
 
   @doc false
-  def find_elements(parent, compiled_query) do
-    WebdriverClient.find_elements(parent, compiled_query)
-  end
+  def find_elements(%{client: client} = parent, compiled_query),
+    do: client.find_elements(parent, compiled_query)
 
   @doc false
-  def execute_script(parent, script, arguments \\ []) do
-    WebdriverClient.execute_script(parent, script, arguments)
-  end
+  def execute_script(%{client: client} = parent, script, arguments \\ []),
+    do: client.execute_script(parent, script, arguments)
 
   @doc false
-  def execute_script_async(parent, script, arguments \\ []) do
-    WebdriverClient.execute_script_async(parent, script, arguments)
-  end
+  def execute_script_async(%{client: client} = parent, script, arguments \\ []),
+    do: client.execute_script_async(parent, script, arguments)
 
   @doc """
   Simulates typing into an element.
@@ -306,9 +302,9 @@ defmodule Wallaby.Selenium do
   remote file path as the input's value.
   """
   @spec send_keys(Session.t() | Element.t(), list()) :: {:ok, any}
-  def send_keys(%Session{} = session, keys), do: WebdriverClient.send_keys(session, keys)
+  def send_keys(%Session{client: client} = session, keys), do: client.send_keys(session, keys)
 
-  def send_keys(%Element{} = element, keys) do
+  def send_keys(%Element{client: client} = element, keys) do
     keys =
       case Enum.all?(keys, &is_local_file?(&1)) do
         true ->
@@ -320,16 +316,12 @@ defmodule Wallaby.Selenium do
           keys
       end
 
-    WebdriverClient.send_keys(element, keys)
+    client.send_keys(element, keys)
   end
 
-  def element_size(element) do
-    WebdriverClient.element_size(element)
-  end
+  def element_size(%{client: client} = element), do: client.element_size(element)
 
-  def element_location(element) do
-    WebdriverClient.element_location(element)
-  end
+  def element_location(%{client: client} = element), do: client.element_location(element)
 
   @doc false
   def default_capabilities(opts \\ []) do
