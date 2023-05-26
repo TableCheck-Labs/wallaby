@@ -207,7 +207,7 @@ defmodule Wallaby.Selenium do
 
   @doc false
   # defdelegate take_screenshot(session_or_element), to: WebdriverClient
-  def take_screenshot(%{client: client} = session, fun), do: client.take_screenshot(session, fun)
+  def take_screenshot(%{client: client} = session), do: client.take_screenshot(session)
 
   @doc false
   def cookies(%{client: client} = session), do: client.cookies(session)
