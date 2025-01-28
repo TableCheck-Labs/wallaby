@@ -3,8 +3,6 @@ defmodule Wallaby.SessionStore do
   use GenServer
   use EventEmitter, :emitter
 
-  alias Wallaby.WebdriverClient
-
   def start_link(opts \\ []) do
     {opts, args} = Keyword.split(opts, [:name])
 
@@ -86,7 +84,7 @@ defmodule Wallaby.SessionStore do
         {{{:"$1", :_, :_}, :"$4"}, [{:==, :"$1", ref}], [:"$4"]}
       ])
 
-    WebdriverClient.delete_session(session)
+    delete_session(session)
 
     :ets.delete(state.ets_table, {ref, session.id, pid})
 
@@ -95,7 +93,9 @@ defmodule Wallaby.SessionStore do
     {:noreply, state}
   end
 
-  defp delete_sessions({_, session}) do
-    WebdriverClient.delete_session(session)
-  end
+  defp delete_sessions({_, session}),
+    do: delete_session(session)
+
+  defp delete_session(%{client: client} = session),
+    do: client.delete_session(session)
 end

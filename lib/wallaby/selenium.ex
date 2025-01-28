@@ -53,9 +53,9 @@ defmodule Wallaby.Selenium do
 
   alias Wallaby.Helpers.KeyCodes
   alias Wallaby.Metadata
-  alias Wallaby.WebdriverClient
+  # alias Wallaby.WebdriverClient
   alias Wallaby.{Driver, Element, Session}
-  alias Wallaby.Webdriver.{JWPClient, W3CClient}
+  alias Wallaby.Webdriver.JWPClient
 
   @typedoc """
   Options to pass to Wallaby.start_session/1
@@ -90,7 +90,7 @@ defmodule Wallaby.Selenium do
   @spec start_session([start_session_opts]) :: Wallaby.Driver.on_start_session() | no_return
   def start_session(opts \\ []) do
     base_url = Keyword.get(opts, :remote_url, "http://localhost:4444/wd/hub/")
-    client = Keyword.get(opts, :client, JWPClient)
+    client = Keyword.get(opts, :client, client_from_config())
     create_session = Keyword.get(opts, :create_session_fn, &client.create_session/2)
     capabilities = Keyword.get(opts, :capabilities, capabilities_from_config(opts))
 
@@ -109,6 +109,12 @@ defmodule Wallaby.Selenium do
 
       {:ok, session}
     end
+  end
+
+  defp client_from_config do
+    :wallaby
+    |> Application.get_env(:selenium, [])
+    |> Keyword.get(:client, JWPClient)
   end
 
   defp capabilities_from_config(opts) do
