@@ -11,7 +11,7 @@ defmodule Wallaby.HTTPClientTest do
         assert conn.request_path == "/my_url"
         assert conn.body_params == %{"hello" => "world"}
         assert get_req_header(conn, "accept") == ["application/json"]
-        assert get_req_header(conn, "content-type") == ["application/json"]
+        assert get_req_header(conn, "content-type") == ["application/json;charset=UTF-8"]
 
         send_json_resp(conn, 200, %{
           "sessionId" => "abc123",
@@ -73,7 +73,11 @@ defmodule Wallaby.HTTPClientTest do
 
     test "includes the original HTTPoison error when there is one", %{bypass: bypass} do
       expected_message =
-        "Wallaby had an internal issue with HTTPoison:\n%HTTPoison.Error{id: nil, reason: :econnrefused}"
+        if Version.compare(System.version(), "1.16.0") in [:eq, :gt] do
+          "Wallaby had an internal issue with HTTPoison:\n%HTTPoison.Error{reason: :econnrefused, id: nil}"
+        else
+          "Wallaby had an internal issue with HTTPoison:\n%HTTPoison.Error{id: nil, reason: :econnrefused}"
+        end
 
       Bypass.down(bypass)
 

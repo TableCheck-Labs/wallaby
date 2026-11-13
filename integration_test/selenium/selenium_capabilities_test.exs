@@ -14,7 +14,6 @@ defmodule Wallaby.Integration.SeleniumCapabilitiesTest do
   describe "capabilities" do
     test "reads default capabilities" do
       expected_capabilities = %{
-        javascriptEnabled: true,
         browserName: "firefox",
         "moz:firefoxOptions": %{
           args: ["-headless"],
@@ -57,6 +56,57 @@ defmodule Wallaby.Integration.SeleniumCapabilitiesTest do
       end
 
       {:ok, session} = SessionCase.start_test_session(create_session_fn: create_session_fn)
+
+      session
+      |> visit("page_1.html")
+      |> assert_has(Query.text("Page 1"))
+
+      assert :ok = Wallaby.end_session(session)
+    end
+
+    test "adds the beam metadata when it is present" do
+      user_agent = "Mozilla/5.0"
+
+      defined_capabilities = %{
+        browserName: "firefox",
+        "moz:firefoxOptions": %{
+          args: ["-headless"],
+          prefs: %{
+            "general.useragent.override" => user_agent
+          }
+        }
+      }
+
+      metadata =
+        if Version.compare(System.version(), "1.16.0") in [:eq, :gt] do
+          "g2gCdwJ2MXQAAAABbQAAAARzb21lbQAAAAhtZXRhZGF0YQ=="
+        else
+          "g2gCZAACdjF0AAAAAW0AAAAEc29tZW0AAAAIbWV0YWRhdGE="
+        end
+
+      expected_capabilities = %{
+        browserName: "firefox",
+        "moz:firefoxOptions": %{
+          args: ["-headless"],
+          prefs: %{
+            "general.useragent.override" => "#{user_agent}/BeamMetadata (#{metadata})"
+          }
+        }
+      }
+
+      Application.put_env(:wallaby, :selenium, capabilities: defined_capabilities)
+
+      create_session_fn = fn url, capabilities ->
+        assert capabilities == expected_capabilities
+
+        WebdriverClient.create_session(url, capabilities)
+      end
+
+      {:ok, session} =
+        SessionCase.start_test_session(
+          create_session_fn: create_session_fn,
+          metadata: %{"some" => "metadata"}
+        )
 
       session
       |> visit("page_1.html")

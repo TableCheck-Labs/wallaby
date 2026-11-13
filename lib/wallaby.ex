@@ -35,7 +35,10 @@ defmodule Wallaby do
 
     children = [
       {driver(), [name: Wallaby.Driver.Supervisor]},
-      :hackney_pool.child_spec(:wallaby_pool, timeout: 15_000, max_connections: 4),
+      :hackney_pool.child_spec(:wallaby_pool,
+        timeout: 15_000,
+        max_connections: System.schedulers_online()
+      ),
       {Wallaby.SessionStore, [name: Wallaby.SessionStore]}
     ]
 
@@ -89,9 +92,9 @@ defmodule Wallaby do
   """
   @spec end_session(Session.t()) :: :ok | {:error, reason}
   def end_session(%Session{driver: driver} = session) do
-    with :ok <- SessionStore.demonitor(session),
-         :ok <- driver.end_session(session),
-         do: :ok
+    with :ok <- SessionStore.demonitor(session) do
+      driver.end_session(session)
+    end
   end
 
   @doc false

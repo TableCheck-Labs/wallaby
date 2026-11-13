@@ -1,12 +1,12 @@
 defmodule Wallaby.Chrome do
   @moduledoc """
-  The Chrome driver uses [Chromedriver](https://sites.google.com/a/chromium.org/chromedriver/) to power Google Chrome and Chromium.
+  The Chrome driver uses [Chromedriver](https://chromedriver.chromium.org/) to power Google Chrome and Chromium.
 
   ## Usage
 
   Start a Wallaby Session using this driver with the following command:
 
-  ```
+  ```elixir
   {:ok, session} = Wallaby.start_session()
   ```
 
@@ -20,7 +20,7 @@ defmodule Wallaby.Chrome do
   This will override the default capabilities and capabilities set with application configuration.
   This will _not_ override capabilities passed in directly to `Wallaby.start_session/1`.
 
-  ```
+  ```elixir
   config :wallaby,
     chromedriver: [
       headless: false
@@ -31,7 +31,7 @@ defmodule Wallaby.Chrome do
 
   These capabilities will override the default capabilities.
 
-  ```
+  ```elixir
   config :wallaby,
     chromedriver: [
       capabilities: %{
@@ -44,7 +44,7 @@ defmodule Wallaby.Chrome do
 
   If ChromeDriver is not available in your path, you can specify it's location.
 
-  ```
+  ```elixir
   config :wallaby,
     chromedriver: [
       path: "path/to/chrome"
@@ -58,7 +58,7 @@ defmodule Wallaby.Chrome do
   This will override the default capabilities and capabilities set with application configuration.
   This will _not_ override capabilities passed in directly to `Wallaby.start_session/1`.
 
-  ```
+  ```elixir
   config :wallaby,
     chromedriver: [
       binary: "path/to/chrome"
@@ -67,7 +67,7 @@ defmodule Wallaby.Chrome do
 
   ## Default Capabilities
 
-  By default, Chromdriver will use the following capabilities
+  By default, Chromedriver will use the following capabilities
 
   You can read more about capabilities in the [JSON Wire Protocol](https://github.com/SeleniumHQ/selenium/wiki/JsonWireProtocol#capabilities-json-object) documentation and the [Chromedriver](https://sites.google.com/a/chromium.org/chromedriver/capabilities) documentation.
 
@@ -106,12 +106,11 @@ defmodule Wallaby.Chrome do
 
   @behaviour Wallaby.Driver
 
-  @default_readiness_timeout 5_000
-  @chromedriver_version_regex ~r/^ChromeDriver (\d+)\.(\d+)/
+  @default_readiness_timeout 10_000
 
   alias Wallaby.Chrome.Chromedriver
-  alias Wallaby.WebdriverClient
   alias Wallaby.{DependencyError, Metadata}
+  alias Wallaby.WebdriverClient
   import Wallaby.Driver.LogChecker
 
   @typedoc """
@@ -145,7 +144,10 @@ defmodule Wallaby.Chrome do
   def init(_) do
     children = [
       Wallaby.Driver.LogStore,
-      Wallaby.Chrome.Chromedriver
+      {PartitionSupervisor,
+       child_spec: Wallaby.Chrome.Chromedriver,
+       name: Wallaby.Chromedrivers,
+       partitions: min(System.schedulers_online(), 10)}
     ]
 
     Supervisor.init(children, strategy: :one_for_one)
@@ -154,14 +156,95 @@ defmodule Wallaby.Chrome do
   @doc false
   @spec validate() :: :ok | {:error, DependencyError.t()}
   def validate do
-    with {:ok, executable} <- find_chromedriver_executable() do
-      {version, 0} = System.cmd(executable, ["--version"])
+    with {:ok, chromedriver_version} <- get_chromedriver_version(),
+         {:ok, chrome_version} <- get_chrome_version(),
+         :ok <- minimum_version_check(chromedriver_version) do
+      version_compare(chrome_version, chromedriver_version)
+    end
+  end
 
-      @chromedriver_version_regex
-      |> Regex.run(version)
-      |> Enum.drop(1)
-      |> Enum.map(&String.to_integer/1)
-      |> version_check()
+  @doc false
+  @spec get_chrome_version() :: {:ok, list(String.t())} | {:error, term}
+  def get_chrome_version do
+    case :os.type() do
+      {:win32, :nt} ->
+        {stdout, 0} =
+          System.cmd("reg", [
+            "query",
+            "HKLM\\SOFTWARE\\Wow6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Google Chrome"
+          ])
+
+        chrome_version = parse_version(stdout)
+
+        {:ok, chrome_version}
+
+      _ ->
+        case find_chrome_executable() do
+          {:ok, chrome_executable} ->
+            {stdout, 0} = System.cmd(chrome_executable, ["--version"])
+
+            chrome_version = parse_version(stdout)
+
+            {:ok, chrome_version}
+
+          error ->
+            error
+        end
+    end
+  end
+
+  @doc false
+  @spec get_chromedriver_version() :: {:ok, list(String.t())} | {:error, term}
+  def get_chromedriver_version do
+    case find_chromedriver_executable() do
+      {:ok, chromedriver_executable} ->
+        {stdout, 0} = System.cmd(chromedriver_executable, ["--version"])
+        chromedriver_version = parse_version(stdout)
+
+        {:ok, chromedriver_version}
+
+      error ->
+        error
+    end
+  end
+
+  @doc false
+  @spec find_chrome_executable :: {:ok, String.t()} | {:error, DependencyError.t()}
+  def find_chrome_executable do
+    default_chrome_paths =
+      case :os.type() do
+        {:unix, :darwin} ->
+          [
+            "/Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome",
+            "/Applications/Chromium.app/Contents/MacOS/Chromium"
+          ]
+
+        {:unix, :linux} ->
+          ["google-chrome", "chromium", "chromium-browser"]
+
+        {:win32, :nt} ->
+          ["C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe"]
+      end
+
+    chrome_path =
+      :wallaby
+      |> Application.get_env(:chromedriver, [])
+      |> Keyword.get(:binary, [])
+
+    [Path.expand(chrome_path) | default_chrome_paths]
+    |> Enum.find_value(&System.find_executable/1)
+    |> case do
+      path when is_binary(path) ->
+        {:ok, path}
+
+      nil ->
+        exception =
+          DependencyError.exception("""
+          Wallaby can't find Chrome. Make sure you have chrome installed and included in your path.
+          You can also provide a path using `config :wallaby, :chromedriver, binary: <path>`.
+          """)
+
+        {:error, exception}
     end
   end
 
@@ -174,7 +257,7 @@ defmodule Wallaby.Chrome do
       |> Keyword.get(:path, "chromedriver")
 
     [Path.expand(chromedriver_path), chromedriver_path]
-    |> Enum.find(&System.find_executable/1)
+    |> Enum.find_value(&System.find_executable/1)
     |> case do
       path when is_binary(path) ->
         {:ok, path}
@@ -182,8 +265,7 @@ defmodule Wallaby.Chrome do
       nil ->
         exception =
           DependencyError.exception("""
-          Wallaby can't find chromedriver. Make sure you have chromedriver installed
-          and included in your path.
+          Wallaby can't find chromedriver. Make sure you have chromedriver installed and included in your path.
           You can also provide a path using `config :wallaby, :chromedriver, path: <path>`.
           """)
 
@@ -191,16 +273,40 @@ defmodule Wallaby.Chrome do
     end
   end
 
-  defp version_check([major_version, _minor_version]) when major_version > 2 do
+  defp version_compare(chrome_version, chromedriver_version) do
+    case chrome_version == chromedriver_version do
+      true ->
+        :ok
+
+      _ ->
+        exception =
+          DependencyError.exception("""
+          Looks like you're trying to run Wallaby with a mismatched version of Chrome: #{Enum.join(chrome_version, ".")} and chromedriver: #{Enum.join(chromedriver_version, ".")}.
+          Chrome and chromedriver must match to a major, minor, and build version.
+          """)
+
+        IO.warn(exception.message)
+
+        :ok
+    end
+  end
+
+  defp minimum_version_check([major_version, _minor_version, _build_version])
+       when major_version > 2 do
     :ok
   end
 
-  defp version_check([major_version, minor_version])
+  defp minimum_version_check([major_version, minor_version, _build_version])
        when major_version == 2 and minor_version >= 30 do
     :ok
   end
 
-  defp version_check(_version) do
+  defp minimum_version_check([major_version, minor_version])
+       when major_version == 2 and minor_version >= 30 do
+    :ok
+  end
+
+  defp minimum_version_check(_version) do
     exception =
       DependencyError.exception("""
       Looks like you're trying to run an older version of chromedriver. Wallaby needs at least
@@ -208,6 +314,19 @@ defmodule Wallaby.Chrome do
       """)
 
     {:error, exception}
+  end
+
+  defp parse_version(body) do
+    result =
+      case Regex.run(~r/.*?(\d+\.\d+(\.\d+)?)/, body) do
+        [_, version, _] ->
+          String.split(version, ".")
+
+        [_, version] ->
+          String.split(version, ".")
+      end
+
+    Enum.map(result, &String.to_integer/1)
   end
 
   @doc false
@@ -218,11 +337,12 @@ defmodule Wallaby.Chrome do
     base_url = Chromedriver.base_url()
     create_session_fn = Keyword.get(opts, :create_session_fn, &WebdriverClient.create_session/2)
 
-    capabilities = Keyword.get(opts, :capabilities, capabilities_from_config(opts))
+    capabilities =
+      opts
+      |> Keyword.get_lazy(:capabilities, fn -> capabilities_from_config(opts) end)
+      |> put_beam_metadata(opts)
 
-    with {:ok, response} <- create_session_fn.(base_url, capabilities) do
-      id = response["sessionId"]
-
+    with {:ok, id} <- create_session_fn.(base_url, capabilities) do
       session = %Wallaby.Session{
         session_url: base_url <> "session/#{id}",
         url: base_url <> "session/#{id}",
@@ -242,9 +362,9 @@ defmodule Wallaby.Chrome do
   defp capabilities_from_config(opts) do
     :wallaby
     |> Application.get_env(:chromedriver, [])
-    |> Keyword.get(:capabilities, default_capabilities(opts))
-    |> put_headless_config()
-    |> put_binary_config()
+    |> Keyword.get_lazy(:capabilities, &default_capabilities/0)
+    |> put_headless_config(opts)
+    |> put_binary_config(opts)
   end
 
   @spec wait_until_ready!(timeout) :: :ok | no_return
@@ -328,8 +448,11 @@ defmodule Wallaby.Chrome do
   def page_title(session), do: delegate(:page_title, session)
   @doc false
   def page_source(session), do: delegate(:page_source, session)
+
   @doc false
-  def set_cookie(session, key, value), do: delegate(:set_cookie, session, [key, value])
+  def set_cookie(session, key, value, attributes \\ []),
+    do: delegate(:set_cookie, session, [key, value, attributes])
+
   @doc false
   def visit(session, url), do: delegate(:visit, session, [url])
   @doc false
@@ -421,12 +544,18 @@ defmodule Wallaby.Chrome do
   defdelegate log(session_or_element), to: WebdriverClient
 
   @doc false
-  def default_capabilities(opts \\ []) do
-    user_agent =
-      Metadata.append(
-        "Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2228.0 Safari/537.36",
-        opts[:metadata]
-      )
+  def default_capabilities do
+    chrome_options =
+      maybe_put_chrome_executable(%{
+        args: [
+          "--no-sandbox",
+          "window-size=1280,800",
+          "--disable-gpu",
+          "--headless",
+          "--fullscreen",
+          "--user-agent=Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2228.0 Safari/537.36"
+        ]
+      })
 
     %{
       javascriptEnabled: false,
@@ -441,21 +570,19 @@ defmodule Wallaby.Chrome do
       loggingPrefs: %{
         browser: "DEBUG"
       },
-      chromeOptions: %{
-        args: [
-          "--no-sandbox",
-          "window-size=1280,800",
-          "--disable-gpu",
-          "--headless",
-          "--fullscreen",
-          "--user-agent=#{user_agent}"
-        ]
-      }
+      chromeOptions: chrome_options
     }
   end
 
-  defp put_headless_config(capabilities) do
-    headless? = Application.get_env(:wallaby, :chromedriver, []) |> Keyword.get(:headless)
+  defp maybe_put_chrome_executable(chrome_options) do
+    case find_chrome_executable() do
+      {:ok, chrome_binary} -> Map.put(chrome_options, :binary, chrome_binary)
+      _ -> chrome_options
+    end
+  end
+
+  defp put_headless_config(capabilities, opts) do
+    headless? = resolve_opt(opts, :headless)
 
     capabilities
     |> update_unless_nil(:args, headless?, fn args ->
@@ -468,13 +595,38 @@ defmodule Wallaby.Chrome do
     end)
   end
 
-  defp put_binary_config(capabilities) do
-    binary_path = Application.get_env(:wallaby, :chromedriver, []) |> Keyword.get(:binary)
+  defp put_binary_config(capabilities, opts) do
+    binary_path = resolve_opt(opts, :binary)
 
     capabilities
     |> update_unless_nil(:binary, binary_path, fn _ ->
       binary_path
     end)
+  end
+
+  defp put_beam_metadata(capabilities, opts) do
+    capabilities
+    |> update_in([:chromeOptions, :args], fn args ->
+      Enum.map(args, &append_metadata_to_arg(&1, opts[:metadata]))
+    end)
+  end
+
+  defp append_metadata_to_arg(arg, metadata) do
+    case String.split(arg, "=") do
+      ["--user-agent", user_agent] ->
+        new_user_agent = Metadata.append(user_agent, metadata)
+        "--user-agent=#{new_user_agent}"
+
+      _ ->
+        arg
+    end
+  end
+
+  defp resolve_opt(opts, key) do
+    case Keyword.fetch(opts, key) do
+      {:ok, value} -> value
+      :error -> Application.get_env(:wallaby, :chromedriver, []) |> Keyword.get(key)
+    end
   end
 
   defp update_unless_nil(capabilities, _key, nil, _updater), do: capabilities

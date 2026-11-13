@@ -26,11 +26,14 @@ defmodule Wallaby.Query do
 
   All of the query operations accept the following options:
 
-    * `:count` - The number of elements that should be found (default: 1).
-    * `:visible` - Determines if the query should return only visible elements (default: true).
-    * `:selected` - Determines if the query should return only selected elements (default: :any for selected and unselected).
-    * `:text` - Text that should be found inside the element (default: nil).
-    * `:at` - The position number of the element to select if multiple elements satisfy the selection criteria. (:all for all elements)
+    - `:count` - The number of elements that should be found or `:any` (default: 1).
+        - If a `:minimum` or `:maximum` is specified, it defaults to `nil`.
+    - `:minimum` - The minimum number of elements that should be found, or `nil` (default: `nil`).
+    - `:maximum` - The maximum number of elements that should be found, or `nil` (default: `nil`).
+    - `:visible` - Determines if the query should return only visible elements (default: `true`).
+    - `:selected` - Determines if the query should return only selected elements (default: `:any`).
+    - `:text` - Text that should be found inside the element (default: `nil`).
+    - `:at` - The position (a number or `:all`) of the element to return if multiple elements satisfy the query. (default: `:all`)
 
   Query options can also be set via functions by the same names:
 
@@ -108,9 +111,9 @@ defmodule Wallaby.Query do
           | :button_type
           | nil
   @type conditions :: [
-          count: non_neg_integer,
-          minimum: non_neg_integer,
-          maximum: non_neg_integer,
+          count: non_neg_integer | :any | nil,
+          minimum: non_neg_integer | nil,
+          maximum: non_neg_integer | nil,
           text: String.t() | nil,
           visible: boolean() | :any,
           selected: boolean() | :any,
@@ -167,7 +170,14 @@ defmodule Wallaby.Query do
   The second is by providing an existing query and a value to set as the `text`
   option.
 
-  ## Example
+  Note that the text you're querying for must appear in a single element.
+  To assert on text that appears in multiple (potentially nested) elements,
+  rather than using `assert_has/2` in combination with `Query.text/2`, use
+  `assert_text/{2,3}` directly.
+
+  ## Examples
+
+  ### Querying the text of a specific element
 
     ```
     submit_button = Query.css("#submit-button")
@@ -175,6 +185,34 @@ defmodule Wallaby.Query do
     update_button = submit_button |> Query.text("Update")
     create_button = submit_button |> Query.text("Create")
     ```
+
+  ### Asserting on the text of a single element
+
+      ```
+      submit_button = Query.css("#submit-button")
+      assert_has(session, Query.text(submit_button, "Create"))
+      ```
+
+  ### Asserting on the text of nested elements
+
+  HTML:
+
+      ```
+      <div id="unread-notifications">
+        Unread messages:
+        <strong>1 message</strong>
+      </div>
+      ```
+
+  Test:
+
+      ```
+      assert_text(session, "Unread messages: 1 message")
+
+      notifications_block = Query.css("#unread-notifications")
+      # It would *not* work to query as: Query.text(notifications_block, "Unread messages: 1 message")
+      assert_has(session, Query.text(notifications_block, "Unread messages:"))
+      ```
   """
   def text(query_or_selector, value_or_opts \\ [])
 
@@ -369,14 +407,22 @@ defmodule Wallaby.Query do
   end
 
   @doc """
-  Updates a query's `count` option.
+  Updates a query's `count`.
+
+  The `count` specifies how many elements you expect to be present within the scope
+  of the query and can be any number greater than zero or `:any`.
 
   ## Example
 
-    ```
-    Query.css(".names > li")
-    |> Query.count(2)
-    ```
+  ```elixir
+  # Exactly 2 elements
+  Query.css(".names > li")
+  |> Query.count(2)
+
+  # Any number of elements
+  Query.css(".names > li")
+  |> Query.count(:any)
+  ```
   """
   def count(query, value) do
     update_condition(query, :count, value)
@@ -403,6 +449,9 @@ defmodule Wallaby.Query do
 
       Query.visible?(query) != true && Query.inner_text(query) ->
         {:error, :cannot_set_text_with_invisible_elements}
+
+      at_number(query) != :all && (at_number(query) < 0 || not is_integer(at_number(query))) ->
+        {:error, {:invalid_at_number, at_number(query)}}
 
       true ->
         {:ok, query}
@@ -451,7 +500,15 @@ defmodule Wallaby.Query do
   end
 
   def count(%Query{conditions: conditions}) do
-    Keyword.get(conditions, :count)
+    Keyword.get(conditions, :count) || default_count(conditions)
+  end
+
+  defp default_count(conditions) do
+    if conditions[:minimum] || conditions[:maximum] || conditions[:at] != :all do
+      nil
+    else
+      1
+    end
   end
 
   def at_number(%Query{conditions: conditions}) do
@@ -475,13 +532,15 @@ defmodule Wallaby.Query do
     count(query) == 1 || at_number(query) != :all
   end
 
-  def matches_count?(%{conditions: conditions}, count) do
+  def matches_count?(%{conditions: conditions} = query, count) do
+    query_count = count(query)
+
     cond do
-      conditions[:count] == :any ->
+      query_count == :any ->
         count > 0
 
-      conditions[:count] ->
-        conditions[:count] == count
+      query_count ->
+        query_count == count
 
       true ->
         !(conditions[:minimum] && conditions[:minimum] > count) &&
@@ -491,11 +550,11 @@ defmodule Wallaby.Query do
 
   defp build_conditions(opts) do
     opts
-    |> add_visibility
-    |> add_text
-    |> add_count
-    |> add_selected
-    |> add_at
+    |> add_visibility()
+    |> add_text()
+    |> add_count()
+    |> add_selected()
+    |> add_at()
   end
 
   defp add_visibility(opts) do
@@ -511,14 +570,10 @@ defmodule Wallaby.Query do
   end
 
   defp add_count(opts) do
-    if opts[:count] == nil && opts[:minimum] == nil && opts[:maximum] == nil do
-      Keyword.put(opts, :count, 1)
-    else
-      opts
-      |> Keyword.put_new(:count, opts[:count])
-      |> Keyword.put_new(:minimum, opts[:minimum])
-      |> Keyword.put_new(:maximum, opts[:maximum])
-    end
+    opts
+    |> Keyword.put_new(:count, nil)
+    |> Keyword.put_new(:minimum, nil)
+    |> Keyword.put_new(:maximum, nil)
   end
 
   defp add_at(opts) do
@@ -527,6 +582,6 @@ defmodule Wallaby.Query do
 
   defp update_condition(%Query{conditions: conditions} = query, key, value) do
     updated_conditions = Keyword.put(conditions, key, value)
-    %Query{query | conditions: updated_conditions}
+    %{query | conditions: updated_conditions}
   end
 end

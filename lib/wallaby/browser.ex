@@ -101,6 +101,7 @@ defmodule Wallaby.Browser do
   assert page
   |> create_todo("Write Wallaby Documentation")
   |> todo_was_created?
+  ```
   """
 
   alias Wallaby.CookieError
@@ -141,7 +142,7 @@ defmodule Wallaby.Browser do
   loop forever (or until the test is killed by exunit).
   """
   @type sync_result :: {:ok, any()} | {:error, any()}
-  @spec retry((() -> sync_result), non_neg_integer()) :: sync_result()
+  @spec retry((-> sync_result), non_neg_integer()) :: sync_result()
 
   def retry(f, start_time \\ current_time()) do
     case f.() do
@@ -207,7 +208,7 @@ defmodule Wallaby.Browser do
   """
   @spec attach_file(parent, Query.t(), path: String.t()) :: parent
   def attach_file(parent, query, path: path) do
-    case is_selenium?(parent) do
+    case selenium?(parent) do
       true ->
         # local/remote selenium will only properly attach
         # & upload a local file with `send_keys`
@@ -262,94 +263,273 @@ defmodule Wallaby.Browser do
   defp remove_illegal_characters(string), do: String.replace(string, ~r{<>:"/\\\?\*}, "")
 
   @doc """
-  Gets the window handle of the currently focused window.
-  """
-  @spec window_handle(parent) :: String.t()
+  Gets the window handle of the current window.
 
+  The window is either an instance of a browser tab or another operating system window.
+  Getting the current window handle makes it easy to return to the window in case you
+  need to switch between them.
+
+  ## Usage
+
+  ```elixir
+  feature "can open a new tab and switch back to the original tab", %{session: session} do
+    handle =
+      session
+      |> visit("/home")
+      |> window_handle()
+
+    path =
+      session
+      # click a link that takes you to a new tab
+      |> click(Query.link("External Page"))
+      |> assert_text("Some text")
+      |> focus_window(handle)
+      |> current_path()
+
+    assert "/home" == path
+  end
+  ```
+  """
+  @spec window_handle(session :: Session.t()) :: String.t()
   def window_handle(%{driver: driver} = session) do
     {:ok, handle} = driver.window_handle(session)
+
     handle
   end
 
   @doc """
   Gets the window handles of all available windows.
-  """
-  @spec window_handles(parent) :: [String.t()]
 
+  The window is either an instance of a browser tab or another operating system window.
+
+  ## Usage
+
+  ```elixir
+  feature "can open new tabs for external links", %{session: session} do
+    handles =
+      session
+      |> visit("/home")
+      |> click(Query.link("External Page"))
+      |> click(Query.link("Another External Page"))
+      |> window_handles()
+
+    assert 3 == length(path)
+  end
+  ```
+  """
+  @spec window_handles(session :: Session.t()) :: [String.t()]
   def window_handles(%{driver: driver} = session) do
     {:ok, handles} = driver.window_handles(session)
+
     handles
   end
 
   @doc """
-  Changes the driver focus to the window identified by the handle.
-  """
-  @spec focus_window(parent, String.t()) :: parent
+  Focuses the window identified by the given handle.
 
+  The window is either an instance of a browser tab or another operating system window.
+
+  ## Usage
+
+  ```elixir
+  feature "can switch between different tabs", %{session: session} do
+    handle =
+      session
+      |> visit("/home")
+      |> window_handle()
+
+    path =
+      session
+      # click a link that takes you to a new tab
+      |> click(Query.link("External Page"))
+      |> assert_text("Some text")
+      |> focus_window(handle)
+      |> current_path()
+
+    assert "/home" == path
+  end
+  ```
+  """
+  @spec focus_window(session :: Session.t(), window_handle :: String.t()) :: parent
   def focus_window(%{driver: driver} = session, window_handle) do
     {:ok, _} = driver.focus_window(session, window_handle)
+
     session
   end
 
   @doc """
-  Closes the currently focused window.
-  """
-  @spec close_window(parent) :: parent
+  Closes the current window.
 
+  The window is either an instance of a browser tab or another operating system window.
+
+  ## Usage
+
+  ```elixir
+  feature "closing a window focuses the previously focused window", %{session: session} do
+    original_handle =
+      session
+      |> visit("/home")
+      |> window_handle()
+
+    new_handle =
+      session
+      # click a link that takes you to a new tab
+      |> click(Query.link("External Page"))
+      |> close_window()
+      |> window_handle()
+
+    assert original_handle == new_handle
+  end
+  ```
+  """
+  @spec close_window(session :: Session.t()) :: Session.t()
   def close_window(%{driver: driver} = session) do
     {:ok, _} = driver.close_window(session)
+
     session
   end
 
   @doc """
-  Gets the size of the currently focused window.
-  """
-  @spec window_size(parent) :: %{String.t() => pos_integer, String.t() => pos_integer}
+  Gets the size of the current window.
 
+  The window is either an instance of a browser tab or another operating system window.
+
+  This is useful for debugging responsive designs where the layout changes as the window size changes. The default window size is 1280x800.
+
+  ## Usage
+
+  ```elixir
+  feature "gets the size of the current window", %{session: session} do
+    %{"width" => width, "height" => height} =
+      session
+      |> visit("/home")
+      |> window_size()
+
+    assert width == 1280
+    assert height == 800
+  end
+  ```
+  """
+  @spec window_size(session :: Session.t()) :: %{
+          String.t() => pos_integer,
+          String.t() => pos_integer
+        }
   def window_size(%{driver: driver} = session) do
     {:ok, size} = driver.get_window_size(session)
+
     size
   end
 
   @doc """
-  Sets the size of the currently focused window.
-  """
-  @spec resize_window(parent, pos_integer, pos_integer) :: parent
+  Sets the size of the current window.
 
+  The window is either an instance of a browser tab or another operating system window.
+
+  ## Usage
+
+  ```elixir
+  feature "sets the size of the window to mobile dimensions", %{session: session} do
+    %{"width" => width, "height" => height} =
+      session
+      |> visit("/home")
+      |> resize_window(375, 667)
+      |> window_size()
+
+    assert width == 375
+    assert height == 667
+  end
+  ```
+  """
+  @spec resize_window(session :: Session.t(), width :: pos_integer(), height :: pos_integer()) ::
+          Session.t()
   def resize_window(%{driver: driver} = session, width, height) do
     {:ok, _} = driver.set_window_size(session, width, height)
+
     session
   end
 
   @doc """
-  Maximizes the currently focused window.
+  Maximizes the current window.
 
-  For most browsers, this requires a window manager to be running.
+  The window is either an instance of a browser tab or another operating system window.
+
+  For most browsers, this requires a graphical window manager to be running.
+
+  ## Usage
+
+  ```elixir
+  feature "maximizes the window to the full size of the display", %{session: session} do
+    %{"width" => width, "height" => height} =
+      session
+      |> visit("/home")
+      |> maximize_window()
+      |> window_size()
+
+    assert width == 1920
+    assert height == 1080
+  end
+  ```
   """
-  @spec maximize_window(parent) :: parent
-
+  @spec maximize_window(session :: Session.t()) :: Session.t()
   def maximize_window(%{driver: driver} = session) do
     {:ok, _} = driver.maximize_window(session)
+
     session
   end
 
   @doc """
-  Gets the position of the currently focused window.
-  """
-  @spec window_position(parent) :: %{String.t() => pos_integer, String.t() => pos_integer}
+  Gets the position of the current window.
 
+  The window is either an instance of a browser tab or another operating system window.
+
+  ## Usage
+
+  ```elixir
+  feature "gets the current display position of the window", %{session: session} do
+    %{"x" => x, "y" => y} =
+      session
+      |> visit("/home")
+      |> window_position()
+
+    assert x == 200
+    assert y == 200
+  end
+  ```
+  """
+  @spec window_position(session :: Session.t()) :: %{
+          String.t() => pos_integer,
+          String.t() => pos_integer
+        }
   def window_position(%{driver: driver} = session) do
     {:ok, position} = driver.get_window_position(session)
+
     position
   end
 
   @doc """
-  Sets the position of the currently focused window.
-  """
-  @spec move_window(parent, pos_integer, pos_integer) :: parent
+  Sets the position of the current window.
 
+  The window is either an instance of a browser tab or another operating system window.
+
+  ## Usage
+
+  ```elixir
+  feature "gets the current display position of the window", %{session: session} do
+    %{"x" => x, "y" => y} =
+      session
+      |> visit("/home")
+      |> move_window(500, 500)
+      |> window_position()
+
+    assert x == 500
+    assert y == 500
+  end
+  ```
+  """
+  @spec move_window(session :: Session.t(), x :: pos_integer(), y :: pos_integer()) :: Session.t()
   def move_window(%{driver: driver} = session, x, y) do
     {:ok, _} = driver.set_window_position(session, x, y)
+
     session
   end
 
@@ -357,7 +537,6 @@ defmodule Wallaby.Browser do
   Changes the driver focus to the frame found by query.
   """
   @spec focus_frame(parent, Query.t()) :: parent
-
   def focus_frame(%{driver: driver} = session, %Query{} = query) do
     session
     |> find(query, &driver.focus_frame(session, &1))
@@ -481,9 +660,9 @@ defmodule Wallaby.Browser do
 
   ## Example
 
-      iex> Wallaby.Session.send_keys(session, ["Example Text", :enter])
-      iex> Wallaby.Session.send_keys(session, [:enter])
-      iex> Wallaby.Session.send_keys(session, [:shift, :enter])
+      iex> Wallaby.Browser.send_keys(session, ["Example Text", :enter])
+      iex> Wallaby.Browser.send_keys(session, [:enter])
+      iex> Wallaby.Browser.send_keys(session, [:shift, :enter])
 
   ### Note
 
@@ -743,26 +922,31 @@ defmodule Wallaby.Browser do
   end
 
   @doc """
-  Finds a specific DOM element on the page based on a CSS selector. Blocks until
-  it either finds the element or until the max time is reached. By default only
-  1 element is expected to match the query. If more elements are present then a
-  count can be specified. Use `:any` to allow any number of elements to be present.
-  By default only elements that are visible on the page are returned.
+  Finds and returns one or more DOM element(s) on the page based on the given query.
 
-  Selections can be scoped by providing a Element as the locator for the query.
+  The query is scoped by the first argument, which is either the `%Session{}` or an
+  `%Element{}`.
 
-  By default finders only work with elements that would be visible to a real
-  user.
+  ## Example
+
+  ```elixir
+  session
+  |> find(Query.css("#login-button"))
+  |> assert_text("Login")
+
+  buttons =
+    session
+    |> find(Query.css(".login-button", count: 2, text: "Login"))
+  ```
+
+  ## Notes
+
+  - Blocks until it finds the element(s) or the max time is reached.
+  - By default only 1 element is expected to match the query. If more elements are present then a count can be
+    specified. Use `count: :any` to allow any number of elements to be present.
+  - By default only elements that would be visible to a real user on the page are returned.
   """
-  @spec find(parent, Query.t(), (Element.t() -> any())) :: parent
   @spec find(parent, Query.t()) :: Element.t() | [Element.t()]
-  @spec find(parent, String.t()) :: Element.t() | [Element.t()]
-  def find(parent, %Query{} = query, callback) when is_function(callback) do
-    results = find(parent, query)
-    callback.(results)
-    parent
-  end
-
   def find(parent, %Query{} = query) do
     case execute_query(parent, query) do
       {:ok, query} ->
@@ -770,7 +954,7 @@ defmodule Wallaby.Browser do
         |> Query.result()
 
       {:error, {:not_found, result}} ->
-        query = %Query{query | result: result}
+        query = %{query | result: result}
 
         case validate_html(parent, query) do
           {:ok, _} ->
@@ -786,6 +970,36 @@ defmodule Wallaby.Browser do
   end
 
   @doc """
+  Same as `find/2`, but takes a callback to enact side effects on the found element(s).
+
+  ## Example
+
+  ```elixir
+  session
+  |> find(Query.css("#login-button"), fn button ->
+    assert_text(button, "Login")
+  end)
+
+  session
+  |> find(Query.css(".login-button", count: 2, text: "Login"), fn buttons ->
+    assert 2 == length(buttons)
+  end)
+
+  ```
+
+  ## Notes
+
+  - Returns the first argument to make the function pipe-able.
+  """
+  @spec find(parent, Query.t(), (Element.t() -> any())) :: parent
+  def find(parent, %Query{} = query, callback) when is_function(callback) do
+    results = find(parent, query)
+    callback.(results)
+
+    parent
+  end
+
+  @doc """
   Finds all of the DOM elements that match the CSS selector. If no elements are
   found then an empty list is immediately returned. This is equivalent to calling
   `find(session, css("element", count: nil, minimum: 0))`.
@@ -794,7 +1008,7 @@ defmodule Wallaby.Browser do
   def all(parent, %Query{} = query) do
     find(
       parent,
-      %Query{query | conditions: Keyword.merge(query.conditions, count: nil, minimum: 0)}
+      %{query | conditions: Keyword.merge(query.conditions, count: nil, minimum: 0)}
     )
   end
 
@@ -957,20 +1171,18 @@ defmodule Wallaby.Browser do
         error ->
           case error do
             {:error, {:not_found, results}} ->
-              query = %Query{query | result: results}
+              query = %{query | result: results}
 
               raise ExpectationNotMetError,
                     Query.ErrorMessage.message(query, :not_found)
 
-            {:error, :invalid_selector} ->
+            {:error, e} ->
               raise Wallaby.QueryError,
-                    Query.ErrorMessage.message(query, :invalid_selector)
+                    Query.ErrorMessage.message(query, e)
 
             _ ->
               raise Wallaby.ExpectationNotMetError,
-                    "Wallaby has encountered an internal error: #{inspect(error)} with session: #{
-                      inspect(parent)
-                    }"
+                    "Wallaby has encountered an internal error: #{inspect(error)} with session: #{inspect(parent)}"
           end
       end
     end
@@ -994,6 +1206,10 @@ defmodule Wallaby.Browser do
       query = unquote(query)
 
       case execute_query(parent, query) do
+        {:error, :invalid_selector} ->
+          raise Wallaby.QueryError,
+                Query.ErrorMessage.message(query, :invalid_selector)
+
         {:error, _not_found} ->
           parent
 
@@ -1065,12 +1281,12 @@ defmodule Wallaby.Browser do
     cookies_list
   end
 
-  def set_cookie(%Session{driver: driver} = session, key, value) do
+  def set_cookie(%Session{driver: driver} = session, key, value, attributes \\ []) do
     if blank_page?(session) do
       raise CookieError
     end
 
-    case driver.set_cookie(session, key, value) do
+    case driver.set_cookie(session, key, value, attributes) do
       {:ok, _list} ->
         session
 
@@ -1176,7 +1392,7 @@ defmodule Wallaby.Browser do
   defp validate_html(parent, %{html_validation: :button_type} = query) do
     buttons = all(parent, Query.css("button", text: query.selector))
 
-    if Enum.count(buttons) == 1 && Enum.any?(buttons) do
+    if Enum.count(buttons) == 1 do
       {:error, :button_with_bad_type}
     else
       {:ok, query}
@@ -1187,23 +1403,28 @@ defmodule Wallaby.Browser do
     label_query = Query.css("label", text: query.selector)
     labels = all(parent, label_query)
 
-    if Enum.count(labels) == 1 do
-      if Enum.any?(labels, &missing_for?(&1)) do
-        {:error, :label_with_no_for}
-      else
-        label = List.first(labels)
-        {:error, {:label_does_not_find_field, Element.attr(label, "for")}}
-      end
-    else
-      {:ok, query}
+    case labels do
+      [label] ->
+        for_attr = Element.attr(label, "for")
+
+        error =
+          if for_attr == nil do
+            :label_with_no_for
+          else
+            id_query = Query.css("[id='#{for_attr}']", count: :any)
+            matching_id_count = parent |> all(id_query) |> Enum.count()
+
+            {:label_does_not_find_field, for_attr, matching_id_count}
+          end
+
+        {:error, error}
+
+      _ ->
+        {:ok, query}
     end
   end
 
   defp validate_html(_, query), do: {:ok, query}
-
-  defp missing_for?(element) do
-    Element.attr(element, "for") == nil
-  end
 
   defp validate_visibility(query, elements) do
     case Query.visible?(query) do
@@ -1244,11 +1465,11 @@ defmodule Wallaby.Browser do
       {:all, _} ->
         {:ok, elements}
 
-      {n, count} when n >= 0 and n < count ->
+      {n, count} when n < count ->
         {:ok, [Enum.at(elements, n)]}
 
       {_, _} ->
-        {:error, {:at_number, query}}
+        {:error, {:not_found, elements}}
     end
   end
 
@@ -1283,7 +1504,7 @@ defmodule Wallaby.Browser do
              {:ok, elements} <- validate_selected(query, elements),
              {:ok, elements} <- validate_count(query, elements),
              {:ok, elements} <- do_at(query, elements) do
-          {:ok, %Query{query | result: elements}}
+          {:ok, %{query | result: elements}}
         end
       rescue
         StaleReferenceError ->
@@ -1337,7 +1558,7 @@ defmodule Wallaby.Browser do
     "file://" <> (path |> Path.expand() |> URI.encode())
   end
 
-  defp is_selenium?(parent) do
+  defp selenium?(parent) do
     parent.driver == Wallaby.Selenium
   end
 end

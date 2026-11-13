@@ -1,8 +1,6 @@
-![Wallaby](https://i.imgur.com/eQ1tlI3.png)
-============
+# ![Wallaby](https://i.imgur.com/eQ1tlI3.png)
 
 [![Actions Status](https://github.com/elixir-wallaby/wallaby/workflows/CI/badge.svg)](https://github.com/elixir-wallaby/wallaby/actions)
-[![codecov](https://codecov.io/gh/elixir-wallaby/wallaby/branch/main/graph/badge.svg)](https://codecov.io/gh/elixir-wallaby/wallaby)
 [![Module Version](https://img.shields.io/hexpm/v/wallaby.svg)](https://hex.pm/packages/wallaby)
 [![Hex Docs](https://img.shields.io/badge/hex-docs-lightgreen.svg)](https://hexdocs.pm/wallaby/)
 [![License](https://img.shields.io/hexpm/l/wallaby.svg)](https://github.com/elixir-wallaby/wallaby/blob/master/LICENSE)
@@ -69,13 +67,13 @@ Read on to see what else Wallaby can do or check out the [Official Documentation
 
 ## Sponsors
 
-![SmartLogic Logo](https://github.com/smartlogic/smartlogic.io/raw/main/images/brand-assets/smartlogic-logo-teal-400.png)
+_Your company's name and logo could be here!_
 
 ## Setup
 
 ### Requirements
 
-Wallaby requires Elixir 1.8+ and OTP 21+.
+Wallaby requires Elixir 1.17+ and OTP 26+.
 
 Wallaby also requires `bash` to be installed. Generally `bash` is widely available, but it does not come pre-installed on Alpine Linux.
 
@@ -86,7 +84,7 @@ Add Wallaby to your list of dependencies in `mix.exs`:
 ```elixir
 def deps do
   [
-    {:wallaby, "~> 0.28.0", runtime: false, only: :test}
+    {:wallaby, "~> 0.30", runtime: false, only: :test}
   ]
 end
 ```
@@ -101,19 +99,48 @@ config :wallaby, driver: Wallaby.Chrome # default
 config :wallaby, driver: Wallaby.Selenium
 ```
 
-When calling `use Wallaby.Feature` and using Ecto, please configure your `otp_app`.
+You'll need to install the actual drivers as well.
 
-```
-config :wallaby, otp_app: :your_app
-```
+- Chrome
+  - [`chromedriver`](https://chromedriver.chromium.org/downloads)
 
-Then ensure that Wallaby is started in your `test_helper.exs`:
+- Selenium
+  - [`selenium`](https://www.selenium.dev/downloads/)
+  - [`geckodriver`](https://github.com/mozilla/geckodriver) (for Firefox) or [`chromedriver`](https://chromedriver.chromium.org/downloads) (for Chrome)
+
+Ensure that Wallaby is started in your `test_helper.exs`:
 
 ```elixir
 {:ok, _} = Application.ensure_all_started(:wallaby)
 ```
 
+When calling `use Wallaby.Feature` and using Ecto, please configure your `otp_app`.
+
+```elixir
+config :wallaby, otp_app: :your_app
+```
+
 ### Phoenix
+
+Enable Phoenix to serve endpoints in tests:
+
+```elixir
+# config/test.exs
+
+config :your_app, YourAppWeb.Endpoint,
+  server: true
+```
+
+In your `test_helper.exs` you can provide some configuration to Wallaby.
+At a minimum, you need to specify a `:base_url`, so Wallaby knows how to resolve relative paths.
+
+```elixir
+# test/test_helper.exs
+
+Application.put_env(:wallaby, :base_url, YourAppWeb.Endpoint.url)
+```
+
+#### Ecto
 
 If you're testing a Phoenix application with Ecto and a database that [supports sandbox mode](https://hexdocs.pm/ecto_sql/Ecto.Adapters.SQL.Sandbox.html), you can enable concurrent testing by adding the `Phoenix.Ecto.SQL.Sandbox` plug to your `Endpoint`.
 It's important that this is at the top of `endpoint.ex` before any other plugs.
@@ -124,18 +151,23 @@ It's important that this is at the top of `endpoint.ex` before any other plugs.
 defmodule YourAppWeb.Endpoint do
   use Phoenix.Endpoint, otp_app: :your_app
 
-  if sandbox = Application.get_env(:your_app, :sandbox) do
-    plug Phoenix.Ecto.SQL.Sandbox, sandbox: sandbox
+  if Application.compile_env(:your_app, :sandbox, false) do
+    plug Phoenix.Ecto.SQL.Sandbox
   end
+
+  # ...
+
+  socket("/live", Phoenix.LiveView.Socket,
+    websocket: [connect_info: [:user_agent, session: @session_options]]
+  )
 ```
 
-Make sure Phoenix is set up to serve endpoints in tests and that the sandbox is enabled:
+It's also important to make sure the `user_agent` is passed in the `connect_info` in order to allow the database and browser session to be wired up correctly.
+
+Then make sure sandbox is enabled:
 
 ```elixir
 # config/test.exs
-
-config :your_app, YourAppWeb.Endpoint,
-  server: true
 
 config :your_app, :sandbox, Ecto.Adapters.SQL.Sandbox
 ```
@@ -145,7 +177,7 @@ This enables the database connection to be owned by the process that is running 
 If you have other resources that should be shared by both processes (e.g. expectations or stubs if using [Mox](https://hexdocs.pm/mox/Mox.html)), then you can define a custom sandbox module:
 
 ```elixir
-# config/support/sandbox.ex
+# test/support/sandbox.ex
 
 defmodule YourApp.Sandbox do
   def allow(repo, owner_pid, child_pid) do
@@ -166,20 +198,30 @@ And update the test config to use your custom sandbox:
 config :your_app, :sandbox, YourApp.Sandbox
 ```
 
-Finally, in your `test_helper.exs` you can provide some configuration to Wallaby.
-At minimum, you need to specify a `:base_url`, so Wallaby knows how to resolve relative paths.
-
-```elixir
-# test/test_helper.exs
-
-Application.put_env(:wallaby, :base_url, YourAppWeb.Endpoint.url)
-```
-
 #### Assets
 
 Assets are not re-compiled when you run `mix test`.
 This can lead to confusion if you've made changes in JavaScript or CSS but tests are still failing.
 There are two common ways to avoid this confusion.
+
+##### esbuild
+
+If you're using [`esbuild`](https://hex.pm/packages/esbuild) you can add `esbuild default` to the `test` alias in the mix config file.
+
+```elixir
+  defp aliases do
+    [
+      "test": [
+        "esbuild default",
+        "ecto.create --quiet",
+        "ecto.migrate",
+        "test",
+      ]
+    ]
+  end
+```
+
+##### Webpack
 
 The first solution is to run `webpack --mode development --watch` from the assets directory.
 This will ensure that assets get recompiled after any changes.
@@ -214,6 +256,39 @@ The second solution is to add a new alias to your mix config that recompiles ass
 
 This method is less error prone but it will cause a delay when starting your test suite.
 
+#### LiveView
+
+In order to test Phoenix LiveView (as of [version 0.17.7](https://github.com/phoenixframework/phoenix_live_view/releases/tag/v0.17.7)) with Wallaby you'll also need to add a function to each `mount/3` function in your LiveViews, or use the `on_mount` `live_session` lifecycle hook in the router:
+
+```elixir
+defmodule MyApp.Hooks.AllowEctoSandbox do
+  import Phoenix.LiveView
+  import Phoenix.Component
+
+  def on_mount(:default, _params, _session, socket) do
+    allow_ecto_sandbox(socket)
+    {:cont, socket}
+  end
+
+  defp allow_ecto_sandbox(socket) do
+    %{assigns: %{phoenix_ecto_sandbox: metadata}} =
+      assign_new(socket, :phoenix_ecto_sandbox, fn ->
+        if connected?(socket), do: get_connect_info(socket, :user_agent)
+      end)
+
+    Phoenix.Ecto.SQL.Sandbox.allow(metadata, Application.get_env(:your_app, :sandbox))
+  end
+end
+```
+
+and then including the function usage in the router:
+
+```elixir
+live_session :default, on_mount: MyApp.Hooks.AllowEctoSandbox do
+  # ...
+end
+```
+
 #### Umbrella Apps
 
 If you're testing an umbrella application containing a Phoenix application for the web interface (`MyWebApp`) and a separate persistence application (`MyPersistenceApp`) using Ecto 2 or 3 with a database that supports sandbox mode, then you can use the same setup as above, with a few tweaks.
@@ -224,7 +299,7 @@ If you're testing an umbrella application containing a Phoenix application for t
 defmodule MyWebApp.Endpoint do
   use Phoenix.Endpoint, otp_app: :my_web_app
 
-  if Application.get_env(:my_persistence_app, :sql_sandbox) do
+  if Application.compile_env(:my_persistence_app, :sandbox, false) do
     plug Phoenix.Ecto.SQL.Sandbox
   end
 ```
@@ -486,9 +561,9 @@ Wallaby provides several ways to interact with JavaScript dialogs such as `windo
 
 You can use one of the following functions:
 
-* For `window.alert` use `accept_alert/2`
-* For `window.confirm` use `accept_confirm/2` or `dismiss_confirm/2`
-* For `window.prompt` use `accept_prompt/2-3` or `dismiss_prompt/2`
+- For `window.alert` use `accept_alert/2`
+- For `window.confirm` use `accept_confirm/2` or `dismiss_confirm/2`
+- For `window.prompt` use `accept_prompt/2-3` or `dismiss_prompt/2`
 
 All of these take a function as last parameter, which must include the necessary interactions to trigger the dialog. For example:
 
@@ -523,6 +598,33 @@ Application.put_env(:wallaby, :js_logger, file)
 
 Logging can be disabled by setting `:js_logger` to `nil`.
 
+### Enabling WebAuthn Virtual Authenticator (Chrome only)
+
+When wanting to test Passkeys with Wallaby, you have to make sure WebAuthn Virtual Authenticator is enabled. You must execute this code to enable this feature in Chrome via the Chromedriver. This configuration will make Chrome automatically present a virtual Passkey whenever WebAuthn [create()](https://developer.mozilla.org/en-US/docs/Web/API/CredentialsContainer/create) or [get()](https://developer.mozilla.org/en-US/docs/Web/API/CredentialsContainer/get) APIs are called in browser.
+
+```elixir
+{:ok, _result} =
+  Wallaby.HTTPClient.request(:post, "#{session.url}/chromium/send_command_and_get_result", %{
+    cmd: "WebAuthn.enable",
+    params: %{}
+  })
+
+{:ok, result} =
+  Wallaby.HTTPClient.request(:post, "#{session.url}/chromium/send_command_and_get_result", %{
+    cmd: "WebAuthn.addVirtualAuthenticator",
+    params: %{
+      options: %{
+        protocol: "ctap2",
+        transport: "internal",
+        hasResidentKey: true,
+        hasUserVerification: true,
+        isUserVerified: true,
+        automaticPresenceSimulation: true
+      }
+    }
+  })
+```
+
 ## Configuration
 
 ### Adjusting timeouts
@@ -555,7 +657,6 @@ Wallaby requires the following tools.
 - Mozilla Firefox
 - selenium-server-standalone
 
-
 ```shell
 # Unit tests
 $ mix test
@@ -570,3 +671,7 @@ $ WALLABY_DRIVER=selenium mix test
 # All tests
 $ mix test.all
 ```
+
+### Helpful Links
+
+- [ChromeDriver Issue Tracker](https://issues.chromium.org/issues?q=status:open%20componentid:1608258&s=created_time:desc)

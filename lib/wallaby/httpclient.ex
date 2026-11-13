@@ -53,7 +53,7 @@ defmodule Wallaby.HTTPClient do
   defp make_request(method, url, body, retry_count, retry_reasons) do
     method
     |> HTTPoison.request(url, body, headers(), request_opts())
-    |> handle_response
+    |> handle_response()
     |> case do
       {:error, :httpoison, error} ->
         :timer.sleep(jitter())
@@ -79,9 +79,9 @@ defmodule Wallaby.HTTPClient do
 
       {:ok, %HTTPoison.Response{body: body}} ->
         with {:ok, decoded} <- Jason.decode(body),
-             {:ok, response} <- check_status(decoded),
-             {:ok, validated} <- check_for_response_errors(response),
-             do: {:ok, validated}
+             {:ok, response} <- check_status(decoded) do
+          check_for_response_errors(response)
+        end
     end
   end
 
@@ -102,8 +102,9 @@ defmodule Wallaby.HTTPClient do
           {:ok, response}
           | {:error, web_driver_error_reason}
           | no_return
-  # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   defp check_for_response_errors(response) do
+    response = coerce_json_message(response)
+
     case Map.get(response, "value") do
       %{"class" => "org.openqa.selenium.StaleElementReferenceException"} ->
         {:error, :stale_reference}
@@ -119,6 +120,9 @@ defmodule Wallaby.HTTPClient do
           "An element command failed because the referenced element is no longer available" <> _
       } ->
         {:error, :stale_reference}
+
+      %{"message" => %{"value" => "An invalid or illegal selector was specified"}} ->
+        {:error, :invalid_selector}
 
       %{"message" => "invalid selector" <> _} ->
         {:error, :invalid_selector}
@@ -145,7 +149,7 @@ defmodule Wallaby.HTTPClient do
   end
 
   defp headers do
-    [{"Accept", "application/json"}, {"Content-Type", "application/json; charset=utf-8"}]
+    [{"Accept", "application/json"}, {"Content-Type", "application/json;charset=UTF-8"}]
   end
 
   @spec to_params(Query.compiled()) :: map
@@ -158,4 +162,25 @@ defmodule Wallaby.HTTPClient do
   end
 
   defp jitter, do: :rand.uniform(@max_jitter)
+
+  defp coerce_json_message(%{"value" => %{"message" => message} = value} = response) do
+    value =
+      with %{"payload" => payload, "type" => type} <-
+             Regex.named_captures(~r/(?<type>.*): (?<payload>{.*})\n.*/, message),
+           {:ok, message} <- Jason.decode(payload) do
+        %{
+          "message" => message,
+          "type" => type
+        }
+      else
+        _ ->
+          value
+      end
+
+    put_in(response["value"], value)
+  end
+
+  defp coerce_json_message(response) do
+    response
+  end
 end

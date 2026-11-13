@@ -13,6 +13,8 @@ defmodule Wallaby.Integration.CapabilitiesTest do
 
   describe "capabilities" do
     test "reads default capabilities" do
+      assert {:ok, chrome_binary} = Wallaby.Chrome.find_chrome_executable()
+
       expected_capabilities = %{
         javascriptEnabled: false,
         loadImages: false,
@@ -27,6 +29,7 @@ defmodule Wallaby.Integration.CapabilitiesTest do
           browser: "DEBUG"
         },
         chromeOptions: %{
+          binary: chrome_binary,
           args: [
             "--no-sandbox",
             "window-size=1280,800",
@@ -39,7 +42,7 @@ defmodule Wallaby.Integration.CapabilitiesTest do
       }
 
       create_session_fn = fn url, capabilities ->
-        assert capabilities == expected_capabilities
+        assert ^expected_capabilities = capabilities
 
         WebdriverClient.create_session(url, capabilities)
       end
@@ -138,6 +141,50 @@ defmodule Wallaby.Integration.CapabilitiesTest do
         SessionCase.start_test_session(
           capabilities: expected_capabilities,
           create_session_fn: create_session_fn
+        )
+
+      session
+      |> visit("page_1.html")
+      |> assert_has(Query.text("Page 1"))
+
+      assert :ok = Wallaby.end_session(session)
+    end
+
+    test "adds the beam metadata when it is present" do
+      user_agent = "Mozilla/5.0"
+
+      defined_capabilities = %{
+        chromeOptions: %{args: ["--headless", "--user-agent=#{user_agent}"]}
+      }
+
+      metadata =
+        if Version.compare(System.version(), "1.16.0") in [:eq, :gt] do
+          "g2gCdwJ2MXQAAAABbQAAAARzb21lbQAAAAhtZXRhZGF0YQ=="
+        else
+          "g2gCZAACdjF0AAAAAW0AAAAEc29tZW0AAAAIbWV0YWRhdGE="
+        end
+
+      expected_capabilities = %{
+        chromeOptions: %{
+          args: [
+            "--headless",
+            "--user-agent=#{user_agent}/BeamMetadata (#{metadata})"
+          ]
+        }
+      }
+
+      Application.put_env(:wallaby, :chromedriver, capabilities: defined_capabilities)
+
+      create_session_fn = fn url, capabilities ->
+        assert capabilities == expected_capabilities
+
+        WebdriverClient.create_session(url, capabilities)
+      end
+
+      {:ok, session} =
+        SessionCase.start_test_session(
+          create_session_fn: create_session_fn,
+          metadata: %{"some" => "metadata"}
         )
 
       session

@@ -55,7 +55,7 @@ defmodule Wallaby.Selenium do
   alias Wallaby.Metadata
   # alias Wallaby.WebdriverClient
   alias Wallaby.{Driver, Element, Session}
-  alias Wallaby.Webdriver.JWPClient
+  alias Wallaby.WebdriverClient
 
   @typedoc """
   Options to pass to Wallaby.start_session/1
@@ -114,7 +114,7 @@ defmodule Wallaby.Selenium do
   defp client_from_config do
     :wallaby
     |> Application.get_env(:selenium, [])
-    |> Keyword.get(:client, JWPClient)
+    |> Keyword.get(:client, WebdriverClient)
   end
 
   defp capabilities_from_config(opts) do
