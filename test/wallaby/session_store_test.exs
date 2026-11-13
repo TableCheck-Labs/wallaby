@@ -15,7 +15,7 @@ defmodule Wallaby.SessionStoreTest do
   describe "monitor/1" do
     test "adds session to the store", %{session_store: session_store, table: table} do
       assert [] == SessionStore.list_sessions_for(name: table)
-      session = %Session{id: "foo"}
+      session = %Session{id: "foo", client: Wallaby.WebdriverClient}
       :ok = SessionStore.monitor(session_store, session)
 
       assert [_] = SessionStore.list_sessions_for(name: table)
@@ -23,7 +23,7 @@ defmodule Wallaby.SessionStoreTest do
 
     test "adds multiple sessions to store", %{session_store: session_store, table: table} do
       assert [] == SessionStore.list_sessions_for(name: table)
-      sessions = [%Session{id: "foo"}, %Session{id: "bar"}]
+      sessions = [%Session{id: "foo", client: Wallaby.WebdriverClient}, %Session{id: "bar", client: Wallaby.WebdriverClient}]
 
       for session <- sessions do
         :ok = SessionStore.monitor(session_store, session)
@@ -42,7 +42,7 @@ defmodule Wallaby.SessionStoreTest do
       session_store: session_store,
       table: table
     } do
-      session = %Session{id: "foo"}
+      session = %Session{id: "foo", client: Wallaby.WebdriverClient}
       :ok = SessionStore.monitor(session_store, session)
       :ok = SessionStore.demonitor(session_store, session)
 
@@ -54,9 +54,9 @@ defmodule Wallaby.SessionStoreTest do
       table: table
     } do
       assert [] == SessionStore.list_sessions_for(name: table)
-      first = %Session{id: "foo"}
-      second = %Session{id: "bar"}
-      third = %Session{id: "baz"}
+      first = %Session{id: "foo", client: Wallaby.WebdriverClient}
+      second = %Session{id: "bar", client: Wallaby.WebdriverClient}
+      third = %Session{id: "baz", client: Wallaby.WebdriverClient}
       sessions = [first, second, third]
 
       for session <- sessions do
@@ -73,7 +73,7 @@ defmodule Wallaby.SessionStoreTest do
     end
 
     test "flushes DOWN message when demonitoring", %{session_store: session_store, table: table} do
-      session = %Session{id: "session_to_flush"}
+      session = %Session{id: "session_to_flush", client: Wallaby.WebdriverClient}
 
       test_pid = self()
 
@@ -122,7 +122,7 @@ defmodule Wallaby.SessionStoreTest do
       for i <- 1..5 do
         spawn(fn ->
           for j <- 1..i do
-            session = %Session{id: "session#{i}#{j}"}
+            session = %Session{id: "session#{i}#{j}", client: Wallaby.WebdriverClient}
             :ok = SessionStore.monitor(session_store, session)
           end
 
@@ -138,7 +138,7 @@ defmodule Wallaby.SessionStoreTest do
         do:
           await(
             :monitor,
-            %{monitored_session: %Session{id: "session#{i}#{j}"}},
+            %{monitored_session: %Session{id: "session#{i}#{j}", client: Wallaby.WebdriverClient}},
             Wallaby.SessionStore
           )
 
@@ -158,7 +158,7 @@ defmodule Wallaby.SessionStoreTest do
         do:
           await(
             :DOWN,
-            %{monitored_session: %Session{id: "session#{i}#{j}"}},
+            %{monitored_session: %Session{id: "session#{i}#{j}", client: Wallaby.WebdriverClient}},
             Wallaby.SessionStore
           )
 

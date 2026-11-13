@@ -23,7 +23,8 @@ defmodule Wallaby.SeleniumTest do
                id: session_id,
                server: :none,
                capabilities: Wallaby.Selenium.default_capabilities(),
-               driver: Wallaby.Selenium
+               driver: Wallaby.Selenium,
+               client: Wallaby.WebdriverClient
              }
     end
 
@@ -83,7 +84,8 @@ defmodule Wallaby.SeleniumTest do
       session_url: session_url,
       url: session_url,
       id: session_id,
-      driver: Wallaby.Selenium
+      driver: Wallaby.Selenium,
+      client: Wallaby.WebdriverClient
     }
   end
 

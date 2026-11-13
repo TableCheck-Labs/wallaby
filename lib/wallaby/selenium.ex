@@ -92,7 +92,11 @@ defmodule Wallaby.Selenium do
     base_url = Keyword.get(opts, :remote_url, "http://localhost:4444/wd/hub/")
     client = Keyword.get(opts, :client, client_from_config())
     create_session = Keyword.get(opts, :create_session_fn, &client.create_session/2)
-    capabilities = Keyword.get(opts, :capabilities, capabilities_from_config(opts))
+
+    capabilities =
+      opts
+      |> Keyword.get_lazy(:capabilities, &capabilities_from_config/0)
+      |> put_beam_metadata(opts)
 
     with {:ok, session_id} <- create_session.(base_url, capabilities) do
       session = %Session{
@@ -117,10 +121,10 @@ defmodule Wallaby.Selenium do
     |> Keyword.get(:client, WebdriverClient)
   end
 
-  defp capabilities_from_config(opts) do
+  defp capabilities_from_config do
     :wallaby
     |> Application.get_env(:selenium, [])
-    |> Keyword.get(:capabilities, default_capabilities(opts))
+    |> Keyword.get_lazy(:capabilities, &default_capabilities/0)
   end
 
   @doc false
@@ -134,7 +138,7 @@ defmodule Wallaby.Selenium do
   def blank_page?(session) do
     case current_url(session) do
       {:ok, url} ->
-        url == "about:blank"
+        url in ["about:blank", "data:,"]
 
       _ ->
         false
@@ -330,24 +334,31 @@ defmodule Wallaby.Selenium do
   def element_location(%{client: client} = element), do: client.element_location(element)
 
   @doc false
-  def default_capabilities(opts \\ []) do
-    user_agent =
-      Metadata.append(
-        "Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2228.0 Safari/537.36",
-        opts[:metadata]
-      )
-
+  def default_capabilities do
     %{
       javascriptEnabled: true,
       browserName: "firefox",
       "moz:firefoxOptions": %{
         args: ["-headless"],
         prefs: %{
-          "general.useragent.override" => user_agent
+          "general.useragent.override" =>
+            "Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2228.0 Safari/537.36"
         }
       }
     }
   end
+
+  defp put_beam_metadata(%{"moz:firefoxOptions": %{prefs: %{}}} = capabilities, opts) do
+    update_in(
+      capabilities,
+      [:"moz:firefoxOptions", :prefs, "general.useragent.override"],
+      fn user_agent ->
+        if user_agent, do: Metadata.append(user_agent, opts[:metadata])
+      end
+    )
+  end
+
+  defp put_beam_metadata(capabilities, _opts), do: capabilities
 
   # Create a zip file containing our local file
   defp create_zipfile(zipfile, filename) do
