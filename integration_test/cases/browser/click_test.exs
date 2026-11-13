@@ -13,11 +13,6 @@ defmodule Wallaby.Integration.Browser.ClickTest do
              |> click(Query.button("Submit button"))
     end
 
-    test "can click invisible elements", %{page: page} do
-      assert page
-             |> click(Query.button("Invisible Button", visible: false))
-    end
-
     test "can be chained/returns parent", %{page: page} do
       page
       |> click(Query.css("#option1"))

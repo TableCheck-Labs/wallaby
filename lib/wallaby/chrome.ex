@@ -348,6 +348,7 @@ defmodule Wallaby.Chrome do
         url: base_url <> "session/#{id}",
         id: id,
         driver: __MODULE__,
+        client: WebdriverClient,
         server: Chromedriver,
         capabilities: capabilities
       }

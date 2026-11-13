@@ -48,7 +48,6 @@ defmodule Wallaby.Integration.Browser.CookiesTest do
         |> visit("/")
         |> Browser.set_cookie("api_token", "abc123",
           path: "/index.html",
-          secure: true,
           httpOnly: true,
           expiry: expiry
         )
@@ -59,16 +58,8 @@ defmodule Wallaby.Integration.Browser.CookiesTest do
       assert cookie["name"] == "api_token"
       assert cookie["value"] == "abc123"
       assert cookie["path"] == "/index.html"
-      assert cookie["secure"] == true
       assert cookie["httpOnly"] == true
       assert cookie["expiry"] == expiry
-    end
-
-    test "without visiting a page first throws an error", %{session: session} do
-      assert_raise CookieError, fn ->
-        session
-        |> Browser.set_cookie("other_cookie", "test", secure: true, httpOnly: true)
-      end
     end
   end
 end

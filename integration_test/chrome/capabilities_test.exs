@@ -86,7 +86,7 @@ defmodule Wallaby.Integration.CapabilitiesTest do
       create_session_fn = fn _url, capabilities ->
         assert capabilities == %{chromeOptions: %{args: ["--headless"]}}
 
-        {:ok, %{}}
+        {:ok, "mock_id"}
       end
 
       SessionCase.start_test_session(create_session_fn: create_session_fn)
@@ -103,7 +103,7 @@ defmodule Wallaby.Integration.CapabilitiesTest do
       create_session_fn = fn _url, capabilities ->
         assert capabilities == %{chromeOptions: %{args: []}}
 
-        {:ok, %{}}
+        {:ok, "mock_id"}
       end
 
       SessionCase.start_test_session(create_session_fn: create_session_fn)
@@ -121,7 +121,7 @@ defmodule Wallaby.Integration.CapabilitiesTest do
       create_session_fn = fn _url, capabilities ->
         assert capabilities == %{chromeOptions: %{args: [], binary: expected_binary_path}}
 
-        {:ok, %{}}
+        {:ok, "mock_id"}
       end
 
       SessionCase.start_test_session(create_session_fn: create_session_fn)
