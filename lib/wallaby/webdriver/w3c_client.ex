@@ -654,7 +654,7 @@ defmodule Wallaby.Webdriver.W3CClient do
   Executes javascript synchronously, taking as arguments the script to execute,
   and optionally a list of arguments available in the script via `arguments`
   """
-  @spec execute_script(Session.t() | Element.t(), String.t(), Keyword.t()) :: {:ok, any}
+  @spec execute_script(Session.t() | Element.t(), String.t(), list()) :: {:ok, any}
   def execute_script(session, script, arguments \\ []) do
     with {:ok, resp} <-
            request(:post, "#{session.session_url}/execute/sync", %{
@@ -669,7 +669,7 @@ defmodule Wallaby.Webdriver.W3CClient do
   Executes asynchronous javascript, taking as arguments the script to execute,
   and optionally a list of arguments available in the script via `arguments`
   """
-  @spec execute_script_async(Session.t() | Element.t(), String.t(), Keyword.t()) :: {:ok, any}
+  @spec execute_script_async(Session.t() | Element.t(), String.t(), list()) :: {:ok, any}
   def execute_script_async(session, script, arguments \\ []) do
     with {:ok, resp} <-
            request(:post, "#{session.session_url}/execute/async", %{
