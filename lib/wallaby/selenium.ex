@@ -155,7 +155,8 @@ defmodule Wallaby.Selenium do
 
   @doc false
   # defdelegate focus_window(session, window_handle), to: WebdriverClient
-  def focus_window(%{client: client} = session), do: client.focus_window(session)
+  def focus_window(%{client: client} = session, window_handle),
+    do: client.focus_window(session, window_handle)
 
   @doc false
   # defdelegate close_window(session), to: WebdriverClient
@@ -209,7 +210,8 @@ defmodule Wallaby.Selenium do
 
   @doc false
   # defdelegate accept_prompt(session, input, fun), to: WebdriverClient
-  def accept_prompt(%{client: client} = session, fun), do: client.accept_prompt(session, fun)
+  def accept_prompt(%{client: client} = session, input, fun),
+    do: client.accept_prompt(session, input, fun)
 
   @doc false
   # defdelegate dismiss_prompt(session, fun), to: WebdriverClient
@@ -240,8 +242,8 @@ defmodule Wallaby.Selenium do
   def page_title(%{client: client} = session), do: client.page_title(session)
 
   @doc false
-  def set_cookie(%{client: client} = session, key, value),
-    do: client.set_cookie(session, key, value)
+  def set_cookie(%{client: client} = session, key, value, attributes \\ []),
+    do: client.set_cookie(session, key, value, attributes)
 
   @doc false
   def visit(%{client: client} = session, path), do: client.visit(session, path)

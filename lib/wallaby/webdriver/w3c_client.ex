@@ -38,6 +38,8 @@ defmodule Wallaby.Webdriver.W3CClient do
   @spec delete_session(Session.t() | Element.t()) :: {:ok, map}
   def delete_session(session) do
     request(:delete, session.session_url, %{})
+  rescue
+    _ -> {:ok, %{}}
   end
 
   @doc """
@@ -546,6 +548,18 @@ defmodule Wallaby.Webdriver.W3CClient do
          do: {:ok, value}
   end
 
+  @spec element_size(Element.t()) :: {:ok, {number, number}}
+  def element_size(element) do
+    with {:ok, value} <- rect(element),
+         do: {:ok, {value["width"], value["height"]}}
+  end
+
+  @spec element_location(Element.t()) :: {:ok, {number, number}}
+  def element_location(element) do
+    with {:ok, value} <- rect(element),
+         do: {:ok, {value["x"], value["y"]}}
+  end
+
   @doc """
   Takes a screenshot.
   """
@@ -570,12 +584,18 @@ defmodule Wallaby.Webdriver.W3CClient do
   @doc """
   Sets a cookie for the session.
   """
-  @spec set_cookie(Session.t(), String.t(), String.t()) :: {:ok, []}
-  def set_cookie(session, key, value) do
+  @spec set_cookie(Session.t(), String.t(), String.t(), keyword()) :: {:ok, []}
+  def set_cookie(session, key, value, attributes \\ []) do
+    cookie_params =
+      attributes
+      |> Keyword.take(~w[path domain secure httpOnly expiry sameSite]a)
+      |> Map.new()
+      |> Map.merge(%{name: key, value: value})
+
     with {:ok, resp} <-
-           request(:post, "#{session.url}/cookie", %{cookie: %{name: key, value: value}}),
-         {:ok, value} <- Map.fetch(resp, "value"),
-         do: {:ok, value}
+           request(:post, "#{session.url}/cookie", %{cookie: cookie_params}) do
+      Map.fetch(resp, "value")
+    end
   end
 
   @doc """
@@ -665,17 +685,21 @@ defmodule Wallaby.Webdriver.W3CClient do
   """
   @spec send_keys(Session.t(), [String.t() | atom]) :: {:ok, nil}
   def send_keys(%Session{} = session, keys) when is_list(keys) do
+    text = keys |> KeyCodes.json() |> Jason.decode!() |> Map.fetch!("value") |> Enum.join()
+
     with {:ok, resp} <-
-           request(:post, "#{session.session_url}/keys", KeyCodes.json(keys), encode_json: false),
-         {:ok, value} <- Map.fetch(resp, "value"),
-         do: {:ok, value}
+           request(:post, "#{session.session_url}/keys", %{text: text}) do
+      Map.fetch(resp, "value")
+    end
   end
 
   def send_keys(parent, keys) when is_list(keys) do
+    text = keys |> KeyCodes.json() |> Jason.decode!() |> Map.fetch!("value") |> Enum.join()
+
     with {:ok, resp} <-
-           request(:post, "#{parent.url}/value", KeyCodes.json(keys), encode_json: false),
-         {:ok, value} <- Map.fetch(resp, "value"),
-         do: {:ok, value}
+           request(:post, "#{parent.url}/value", %{text: text}) do
+      Map.fetch(resp, "value")
+    end
   end
 
   @doc """
