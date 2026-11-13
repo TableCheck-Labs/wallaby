@@ -31,7 +31,12 @@ defmodule Wallaby.Integration.Browser.UseFeatureTest do
                            "I'm a capability"
                          )
   @sessions [[capabilities: @expected_capabilities]]
+  @tag :skip_selenium
   feature "reads capabilities from session attribute", %{session: %{capabilities: capabilities}} do
     assert capabilities.test == @expected_capabilities.test
+  end
+
+  test "does not set up a session for non-feature tests", context do
+    refute is_map_key(context, :session)
   end
 end

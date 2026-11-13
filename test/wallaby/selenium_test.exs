@@ -23,12 +23,14 @@ defmodule Wallaby.SeleniumTest do
                id: session_id,
                server: :none,
                capabilities: Wallaby.Selenium.default_capabilities(),
-               driver: Wallaby.Selenium
+               driver: Wallaby.Selenium,
+               client: Wallaby.WebdriverClient
              }
     end
 
     test "raises a RuntimeError on unknown domain" do
-      remote_url = "http://does.not.exist-asdf/"
+      # Trailing dot prevents DNS search domain resolution
+      remote_url = "http://does.not.exist-asdf./"
 
       assert_raise RuntimeError, ~r/:nxdomain/, fn ->
         Selenium.start_session(remote_url: remote_url)
@@ -82,7 +84,8 @@ defmodule Wallaby.SeleniumTest do
       session_url: session_url,
       url: session_url,
       id: session_id,
-      driver: Wallaby.Selenium
+      driver: Wallaby.Selenium,
+      client: Wallaby.WebdriverClient
     }
   end
 

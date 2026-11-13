@@ -55,7 +55,7 @@ defmodule Wallaby.Selenium do
   alias Wallaby.Metadata
   # alias Wallaby.WebdriverClient
   alias Wallaby.{Driver, Element, Session}
-  alias Wallaby.Webdriver.JWPClient
+  alias Wallaby.WebdriverClient
 
   @typedoc """
   Options to pass to Wallaby.start_session/1
@@ -92,7 +92,11 @@ defmodule Wallaby.Selenium do
     base_url = Keyword.get(opts, :remote_url, "http://localhost:4444/wd/hub/")
     client = Keyword.get(opts, :client, client_from_config())
     create_session = Keyword.get(opts, :create_session_fn, &client.create_session/2)
-    capabilities = Keyword.get(opts, :capabilities, capabilities_from_config(opts))
+
+    capabilities =
+      opts
+      |> Keyword.get_lazy(:capabilities, &capabilities_from_config/0)
+      |> put_beam_metadata(opts)
 
     with {:ok, session_id} <- create_session.(base_url, capabilities) do
       session = %Session{
@@ -114,13 +118,13 @@ defmodule Wallaby.Selenium do
   defp client_from_config do
     :wallaby
     |> Application.get_env(:selenium, [])
-    |> Keyword.get(:client, JWPClient)
+    |> Keyword.get(:client, WebdriverClient)
   end
 
-  defp capabilities_from_config(opts) do
+  defp capabilities_from_config do
     :wallaby
     |> Application.get_env(:selenium, [])
-    |> Keyword.get(:capabilities, default_capabilities(opts))
+    |> Keyword.get_lazy(:capabilities, &default_capabilities/0)
   end
 
   @doc false
@@ -134,7 +138,7 @@ defmodule Wallaby.Selenium do
   def blank_page?(session) do
     case current_url(session) do
       {:ok, url} ->
-        url == "about:blank"
+        url in ["about:blank", "data:,"]
 
       _ ->
         false
@@ -151,7 +155,8 @@ defmodule Wallaby.Selenium do
 
   @doc false
   # defdelegate focus_window(session, window_handle), to: WebdriverClient
-  def focus_window(%{client: client} = session), do: client.focus_window(session)
+  def focus_window(%{client: client} = session, window_handle),
+    do: client.focus_window(session, window_handle)
 
   @doc false
   # defdelegate close_window(session), to: WebdriverClient
@@ -205,7 +210,8 @@ defmodule Wallaby.Selenium do
 
   @doc false
   # defdelegate accept_prompt(session, input, fun), to: WebdriverClient
-  def accept_prompt(%{client: client} = session, fun), do: client.accept_prompt(session, fun)
+  def accept_prompt(%{client: client} = session, input, fun),
+    do: client.accept_prompt(session, input, fun)
 
   @doc false
   # defdelegate dismiss_prompt(session, fun), to: WebdriverClient
@@ -220,10 +226,9 @@ defmodule Wallaby.Selenium do
 
   @doc false
   def current_path(%Session{client: client} = session) do
-    with {:ok, url} <- client.current_url(session),
-         uri <- URI.parse(url),
-         {:ok, path} <- Map.fetch(uri, :path),
-         do: {:ok, path}
+    with {:ok, url} <- client.current_url(session) do
+      {:ok, URI.parse(url).path}
+    end
   end
 
   @doc false
@@ -236,8 +241,8 @@ defmodule Wallaby.Selenium do
   def page_title(%{client: client} = session), do: client.page_title(session)
 
   @doc false
-  def set_cookie(%{client: client} = session, key, value),
-    do: client.set_cookie(session, key, value)
+  def set_cookie(%{client: client} = session, key, value, attributes \\ []),
+    do: client.set_cookie(session, key, value, attributes)
 
   @doc false
   def visit(%{client: client} = session, path), do: client.visit(session, path)
@@ -312,7 +317,7 @@ defmodule Wallaby.Selenium do
 
   def send_keys(%Element{client: client} = element, keys) do
     keys =
-      case Enum.all?(keys, &is_local_file?(&1)) do
+      case Enum.all?(keys, &local_file?(&1)) do
         true ->
           keys
           |> Enum.map(fn key -> upload_file(element, key) end)
@@ -330,24 +335,31 @@ defmodule Wallaby.Selenium do
   def element_location(%{client: client} = element), do: client.element_location(element)
 
   @doc false
-  def default_capabilities(opts \\ []) do
-    user_agent =
-      Metadata.append(
-        "Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2228.0 Safari/537.36",
-        opts[:metadata]
-      )
-
+  def default_capabilities do
     %{
       javascriptEnabled: true,
       browserName: "firefox",
       "moz:firefoxOptions": %{
         args: ["-headless"],
         prefs: %{
-          "general.useragent.override" => user_agent
+          "general.useragent.override" =>
+            "Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2228.0 Safari/537.36"
         }
       }
     }
   end
+
+  defp put_beam_metadata(%{"moz:firefoxOptions": %{prefs: %{}}} = capabilities, opts) do
+    update_in(
+      capabilities,
+      [:"moz:firefoxOptions", :prefs, "general.useragent.override"],
+      fn user_agent ->
+        if user_agent, do: Metadata.append(user_agent, opts[:metadata])
+      end
+    )
+  end
+
+  defp put_beam_metadata(capabilities, _opts), do: capabilities
 
   # Create a zip file containing our local file
   defp create_zipfile(zipfile, filename) do
@@ -361,16 +373,18 @@ defmodule Wallaby.Selenium do
     zipfile
   end
 
+  @binread_arg if Version.parse!(System.version()).minor >= 13, do: :eof, else: :all
+
   # Base64 encode the zipfile for transfer to remote Selenium
   defp encode_zipfile(zipfile) do
     File.open!(zipfile, [:read, :raw], fn f ->
       f
-      |> IO.binread(:all)
+      |> IO.binread(@binread_arg)
       |> Base.encode64()
     end)
   end
 
-  defp is_local_file?(file) do
+  defp local_file?(file) do
     file
     |> keys_to_binary()
     |> File.exists?()

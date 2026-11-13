@@ -5,8 +5,8 @@ defmodule Wallaby.Integration.TestServer do
     port: 0,
     server_root: String.to_charlist(Path.absname("./", __DIR__)),
     document_root: String.to_charlist(Path.absname("./pages", __DIR__)),
-    server_name: 'wallaby_test',
-    directory_index: ['index.html']
+    server_name: ~c"wallaby_test",
+    directory_index: [~c"index.html"]
   ]
 
   defstruct [:base_url, :pid]
@@ -17,7 +17,8 @@ defmodule Wallaby.Integration.TestServer do
     case :inets.start(:httpd, @config) do
       {:ok, pid} ->
         port = :httpd.info(pid)[:port]
-        {:ok, %__MODULE__{base_url: "http://localhost:#{port}/", pid: pid}}
+        host = System.get_env("TEST_SERVER_HOST", "localhost")
+        {:ok, %__MODULE__{base_url: "http://#{host}:#{port}/", pid: pid}}
 
       error ->
         error

@@ -1,5 +1,7 @@
 defmodule Wallaby.Session do
-  @moduledoc false
+  @moduledoc """
+  Struct containing details about the webdriver session.
+  """
 
   @type t :: %__MODULE__{
           id: String.t(),
@@ -12,5 +14,14 @@ defmodule Wallaby.Session do
           capabilities: map()
         }
 
-  defstruct [:id, :url, :session_url, :driver, :client, :capabilities, server: :none, screenshots: []]
+  defstruct [
+    :id,
+    :url,
+    :session_url,
+    :driver,
+    :client,
+    :capabilities,
+    server: :none,
+    screenshots: []
+  ]
 end

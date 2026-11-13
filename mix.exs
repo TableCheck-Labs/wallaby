@@ -2,19 +2,16 @@ defmodule Wallaby.Mixfile do
   use Mix.Project
 
   @source_url "https://github.com/elixir-wallaby/wallaby"
-  @version "0.28.1"
+  @version "0.31.0"
   @drivers ~w(selenium chrome)
   @selected_driver System.get_env("WALLABY_DRIVER")
-  @maintainers [
-    "Aaron Renner",
-    "Mitchell Hanberg"
-  ]
+  @maintainers ["Mitchell Hanberg"]
 
   def project do
     [
       app: :wallaby,
       version: @version,
-      elixir: "~> 1.8",
+      elixir: "~> 1.17",
       elixirc_paths: elixirc_paths(Mix.env()),
       build_embedded: Mix.env() == :prod,
       start_permanent: Mix.env() == :prod,
@@ -25,17 +22,17 @@ defmodule Wallaby.Mixfile do
 
       # Custom testing
       aliases: ["test.all": ["test", "test.drivers"], "test.drivers": &test_drivers/1],
-      preferred_cli_env: [
-        coveralls: :test,
-        "coveralls.detail": :test,
-        "coveralls.html": :test,
-        "coveralls.json": :test,
-        "test.all": :test,
-        "test.drivers": :test
-      ],
-      test_coverage: [tool: ExCoveralls],
       test_paths: test_paths(@selected_driver),
       dialyzer: dialyzer()
+    ]
+  end
+
+  def cli do
+    [
+      preferred_envs: [
+        "test.all": :test,
+        "test.drivers": :test
+      ]
     ]
   end
 
@@ -51,15 +48,12 @@ defmodule Wallaby.Mixfile do
   defp deps do
     [
       {:jason, "~> 1.1"},
-      {:httpoison, "~> 0.12 or ~> 1.0 or ~> 2.0"},
-      {:web_driver_client, "~> 0.2.0"},
+      {:httpoison, "~> 0.12 or ~> 1.0 or ~> 2.0 or ~> 3.0"},
+      {:web_driver_client, "~> 0.3.0"},
       {:dialyxir, "~> 1.0", only: :dev, runtime: false},
-      {:benchee, "~> 0.9", only: :dev},
-      {:benchee_html, "~> 0.3", only: :dev},
-      {:credo, "~> 1.5", only: [:dev, :test], runtime: false},
+      {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:bypass, "~> 1.0.0", only: :test},
-      {:excoveralls, "~> 0.7", only: :test},
-      {:ex_doc, "~> 0.23", only: :dev},
+      {:ex_doc, "~> 0.28", only: :dev},
       {:ecto_sql, ">= 3.0.0", optional: true},
       {:phoenix_ecto, ">= 3.0.0", optional: true}
     ]
@@ -70,13 +64,16 @@ defmodule Wallaby.Mixfile do
       files: ["lib", "mix.exs", "README.md", "LICENSE.md", "priv"],
       maintainers: @maintainers,
       licenses: ["MIT"],
-      links: %{"Github" => @source_url}
+      links: %{
+        "Github" => @source_url,
+        "Sponsor" => "https://github.com/sponsors/mhanberg"
+      }
     ]
   end
 
   defp docs do
     [
-      extras: ["README.md"],
+      extras: ["README.md": [title: "Introduction"]],
       source_ref: "v#{@version}",
       source_url: @source_url,
       main: "readme",

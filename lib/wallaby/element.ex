@@ -25,7 +25,6 @@ defmodule Wallaby.Element do
   Unlike `Browser` the actions in `Element` do not retry if the element becomes stale. Instead an exception will be raised.
   """
 
-  alias Wallaby.InvalidSelectorError
   alias Wallaby.StaleReferenceError
 
   defstruct [:url, :session_url, :parent, :id, :driver, :client, screenshots: []]
@@ -52,16 +51,9 @@ defmodule Wallaby.Element do
   @spec clear(t) :: t
 
   def clear(%__MODULE__{driver: driver} = element) do
-    case driver.clear(element) do
-      {:ok, _} ->
-        element
-
-      {:error, :stale_reference} ->
-        raise StaleReferenceError
-
-      {:error, :invalid_selector} ->
-        raise InvalidSelectorError
-    end
+    element
+    |> driver.clear()
+    |> handle_action_result(element)
   end
 
   @doc """
@@ -86,12 +78,6 @@ defmodule Wallaby.Element do
 
   def click(%__MODULE__{driver: driver} = element, retry_count \\ 0) do
     case driver.click(element) do
-      {:ok, _} ->
-        element
-
-      {:error, :stale_reference} ->
-        raise StaleReferenceError
-
       {:error, :obscured} ->
         if retry_count > 4 do
           raise Wallaby.ExpectationNotMetError, """
@@ -100,6 +86,9 @@ defmodule Wallaby.Element do
         else
           click(element, retry_count + 1)
         end
+
+      result ->
+        handle_action_result(result, element)
     end
   end
 
@@ -109,10 +98,9 @@ defmodule Wallaby.Element do
   @spec hover(t) :: t
 
   def hover(%__MODULE__{driver: driver} = element) do
-    case driver.hover(element) do
-      {:ok, _} ->
-        element
-    end
+    element
+    |> driver.hover()
+    |> handle_action_result(element)
   end
 
   @doc """
@@ -121,10 +109,8 @@ defmodule Wallaby.Element do
   @spec touch_down(t, integer, integer) :: t
 
   def touch_down(%__MODULE__{driver: driver} = element, x_offset \\ 0, y_offset \\ 0) do
-    case driver.touch_down(element, element, x_offset, y_offset) do
-      {:ok, _} ->
-        element
-    end
+    driver.touch_down(element, element, x_offset, y_offset)
+    |> handle_action_result(element)
   end
 
   @doc """
@@ -133,10 +119,9 @@ defmodule Wallaby.Element do
   @spec tap(t) :: t
 
   def tap(%__MODULE__{driver: driver} = element) do
-    case driver.tap(element) do
-      {:ok, _} ->
-        element
-    end
+    element
+    |> driver.tap()
+    |> handle_action_result(element)
   end
 
   @doc """
@@ -145,10 +130,9 @@ defmodule Wallaby.Element do
   @spec touch_scroll(t, integer, integer) :: t
 
   def touch_scroll(%__MODULE__{driver: driver} = element, x_offset, y_offset) do
-    case driver.touch_scroll(element, x_offset, y_offset) do
-      {:ok, _} ->
-        element
-    end
+    element
+    |> driver.touch_scroll(x_offset, y_offset)
+    |> handle_action_result(element)
   end
 
   @doc """
@@ -159,13 +143,9 @@ defmodule Wallaby.Element do
   @spec text(t) :: String.t()
 
   def text(%__MODULE__{driver: driver} = element) do
-    case driver.text(element) do
-      {:ok, text} ->
-        text
-
-      {:error, :stale_reference} ->
-        raise StaleReferenceError
-    end
+    element
+    |> driver.text()
+    |> handle_value_result()
   end
 
   @doc """
@@ -174,13 +154,9 @@ defmodule Wallaby.Element do
   @spec attr(t, attr()) :: String.t() | nil
 
   def attr(%__MODULE__{driver: driver} = element, name) do
-    case driver.attribute(element, name) do
-      {:ok, attribute} ->
-        attribute
-
-      {:error, :stale_reference} ->
-        raise StaleReferenceError
-    end
+    element
+    |> driver.attribute(name)
+    |> handle_value_result()
   end
 
   @doc """
@@ -194,13 +170,9 @@ defmodule Wallaby.Element do
   @spec selected?(t) :: boolean()
 
   def selected?(%__MODULE__{driver: driver} = element) do
-    case driver.selected(element) do
-      {:ok, value} ->
-        value
-
-      {:error, _} ->
-        false
-    end
+    element
+    |> driver.selected()
+    |> handle_boolean_result()
   end
 
   @doc """
@@ -209,13 +181,9 @@ defmodule Wallaby.Element do
   @spec visible?(t) :: boolean()
 
   def visible?(%__MODULE__{driver: driver} = element) do
-    case driver.displayed(element) do
-      {:ok, value} ->
-        value
-
-      {:error, _} ->
-        false
-    end
+    element
+    |> driver.displayed()
+    |> handle_boolean_result()
   end
 
   @doc """
@@ -224,16 +192,9 @@ defmodule Wallaby.Element do
   @spec set_value(t, value()) :: t
 
   def set_value(%__MODULE__{driver: driver} = element, value) do
-    case driver.set_value(element, value) do
-      {:ok, _} ->
-        element
-
-      {:error, :stale_reference} ->
-        raise StaleReferenceError
-
-      error ->
-        error
-    end
+    element
+    |> driver.set_value(value)
+    |> handle_action_result(element)
   end
 
   @doc """
@@ -246,16 +207,9 @@ defmodule Wallaby.Element do
   end
 
   def send_keys(%__MODULE__{driver: driver} = element, keys) when is_list(keys) do
-    case driver.send_keys(element, keys) do
-      {:ok, _} ->
-        element
-
-      {:error, :stale_reference} ->
-        raise StaleReferenceError
-
-      error ->
-        error
-    end
+    element
+    |> driver.send_keys(keys)
+    |> handle_action_result(element)
   end
 
   @doc """
@@ -270,26 +224,49 @@ defmodule Wallaby.Element do
   @doc """
   Returns a tuple `{width, height}` with the size of the given element.
   """
-  @spec size(t) :: t
+  @spec size(t) :: {non_neg_integer, non_neg_integer}
 
   def size(%__MODULE__{driver: driver} = element) do
-    case driver.element_size(element) do
-      {:ok, value} ->
-        value
-    end
+    element
+    |> driver.element_size()
+    |> handle_value_result()
   end
 
   @doc """
   Returns a tuple `{x, y}` with the coordinates of the left-top corner of given element.
   """
-  @spec location(t) :: t
+  @spec location(t) :: {non_neg_integer, non_neg_integer}
 
   def location(%__MODULE__{driver: driver} = element) do
-    case driver.element_location(element) do
-      {:ok, value} ->
-        value
+    element
+    |> driver.element_location()
+    |> handle_value_result()
+  end
+
+  defp handle_action_result(result, element) do
+    case result do
+      {:ok, _} -> element
+      {:error, error} -> raise_error(error)
     end
   end
+
+  defp handle_value_result(result) do
+    case result do
+      {:ok, value} -> value
+      {:error, error} -> raise_error(error)
+    end
+  end
+
+  defp handle_boolean_result(result) do
+    case result do
+      {:ok, true} -> true
+      {:ok, false} -> false
+      {:error, error} -> raise_error(error)
+    end
+  end
+
+  defp raise_error(:stale_reference), do: raise(StaleReferenceError)
+  defp raise_error(error), do: raise(RuntimeError, inspect(error))
 end
 
 defimpl Inspect, for: Wallaby.Element do
@@ -310,6 +287,11 @@ defimpl Inspect, for: Wallaby.Element do
           []
       end
 
-    concat([Inspect.Any.inspect(element, opts)] ++ additional_output)
+    element
+    |> Inspect.Any.inspect(opts)
+    |> maybe_concat(additional_output)
   end
+
+  defp maybe_concat(inspect_result, []), do: inspect_result
+  defp maybe_concat(inspect_result, output), do: concat([inspect_result | output])
 end

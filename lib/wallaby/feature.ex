@@ -23,22 +23,26 @@ defmodule Wallaby.Feature do
       import Wallaby.Feature
 
       setup context do
-        metadata = unquote(__MODULE__).Utils.maybe_checkout_repos(context[:async])
+        if context[:test_type] == :feature do
+          metadata = unquote(__MODULE__).Utils.maybe_checkout_repos(context[:async])
 
-        start_session_opts =
-          [metadata: metadata]
-          |> unquote(__MODULE__).Utils.put_create_session_fn(context[:create_session_fn])
+          start_session_opts =
+            [metadata: metadata]
+            |> unquote(__MODULE__).Utils.put_create_session_fn(context[:create_session_fn])
 
-        get_in(context, [:registered, :sessions])
-        |> unquote(__MODULE__).Utils.sessions_iterable()
-        |> Enum.map(fn
-          opts when is_list(opts) ->
-            unquote(__MODULE__).Utils.start_session(opts, start_session_opts)
+          get_in(context, [:registered, :sessions])
+          |> unquote(__MODULE__).Utils.sessions_iterable()
+          |> Enum.map(fn
+            opts when is_list(opts) ->
+              unquote(__MODULE__).Utils.start_session(opts, start_session_opts)
 
-          i when is_number(i) ->
-            unquote(__MODULE__).Utils.start_session([], start_session_opts)
-        end)
-        |> unquote(__MODULE__).Utils.build_setup_return()
+            i when is_number(i) ->
+              unquote(__MODULE__).Utils.start_session([], start_session_opts)
+          end)
+          |> unquote(__MODULE__).Utils.build_setup_return()
+        else
+          :ok
+        end
       end
     end
   end
@@ -69,11 +73,11 @@ defmodule Wallaby.Feature do
   end
   ```
 
-  If you need to change the capabilities sent to the session for a specific feature, you can assign `@sessions` to a list of keyword lists of the options to be passed to `Wallaby.start_session/1`. This will start the number of sessions equal to the size of the list.
+  If you need to change the headless mode, binary path, or capabilities sent to the session for a specific feature, you can assign `@sessions` to a list of keyword lists of the options to be passed to `Wallaby.start_session/1`. This will start the number of sessions equal to the size of the list.
 
   ```
   @sessions [
-    [capabilities: %{}]
+    [headless: false, binary: "some_path", capabilities: %{}]
   ]
   feature "test with different capabilities", %{session: session} do
     # ...
@@ -121,8 +125,17 @@ defmodule Wallaby.Feature do
     context = Macro.escape(context)
     contents = Macro.escape(contents, unquote: true)
 
-    quote bind_quoted: [context: context, contents: contents, message: message] do
-      name = ExUnit.Case.register_test(__ENV__, :feature, message, [:feature])
+    %{module: mod, file: file, line: line} = __CALLER__
+
+    quote bind_quoted: [
+            mod: mod,
+            file: file,
+            line: line,
+            context: context,
+            contents: contents,
+            message: message
+          ] do
+      name = ExUnit.Case.register_test(mod, file, line, :feature, message, [:feature])
 
       def unquote(name)(unquote(context)), do: unquote(contents)
     end

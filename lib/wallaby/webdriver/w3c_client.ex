@@ -38,6 +38,8 @@ defmodule Wallaby.Webdriver.W3CClient do
   @spec delete_session(Session.t() | Element.t()) :: {:ok, map}
   def delete_session(session) do
     request(:delete, session.session_url, %{})
+  rescue
+    _ -> {:ok, %{}}
   end
 
   @doc """
@@ -138,9 +140,9 @@ defmodule Wallaby.Webdriver.W3CClient do
   """
   @spec click(Element.t()) :: {:ok, map}
   def click(%Element{url: url, id: id}) do
-    with {:ok, resp} <- request(:post, "#{url}/click", %{id: id}),
-         {:ok, value} <- Map.fetch(resp, "value"),
-         do: {:ok, value}
+    with {:ok, resp} <- request(:post, "#{url}/click", %{id: id}) do
+      Map.fetch(resp, "value")
+    end
   end
 
   @doc """
@@ -162,9 +164,9 @@ defmodule Wallaby.Webdriver.W3CClient do
                  ]
                }
              ]
-           }),
-         {:ok, value} <- Map.fetch(resp, "value"),
-         do: {:ok, value}
+           }) do
+      Map.fetch(resp, "value")
+    end
   end
 
   @doc """
@@ -187,9 +189,9 @@ defmodule Wallaby.Webdriver.W3CClient do
                  ]
                }
              ]
-           }),
-         {:ok, value} <- Map.fetch(resp, "value"),
-         do: {:ok, value}
+           }) do
+      Map.fetch(resp, "value")
+    end
   end
 
   @doc """
@@ -208,9 +210,9 @@ defmodule Wallaby.Webdriver.W3CClient do
                  "actions" => [mouse_button_event_action(button, :down)]
                }
              ]
-           }),
-         {:ok, value} <- Map.fetch(resp, "value"),
-         do: {:ok, value}
+           }) do
+      Map.fetch(resp, "value")
+    end
   end
 
   @doc """
@@ -229,9 +231,9 @@ defmodule Wallaby.Webdriver.W3CClient do
                  "actions" => [mouse_button_event_action(button, :up)]
                }
              ]
-           }),
-         {:ok, value} <- Map.fetch(resp, "value"),
-         do: {:ok, value}
+           }) do
+      Map.fetch(resp, "value")
+    end
   end
 
   def mouse_button_event_action(button, type)
@@ -264,9 +266,10 @@ defmodule Wallaby.Webdriver.W3CClient do
       end
 
     origin =
-      cond do
-        is_nil(element) -> "pointer"
-        true -> %{@web_element_identifier => element.id}
+      if is_nil(element) do
+        "pointer"
+      else
+        %{@web_element_identifier => element.id}
       end
 
     action = %{"type" => "pointerMove", "x" => x_offset, "y" => y_offset, "origin" => origin}
@@ -281,9 +284,9 @@ defmodule Wallaby.Webdriver.W3CClient do
                  "actions" => [action]
                }
              ]
-           }),
-         {:ok, value} <- Map.fetch(resp, "value"),
-         do: {:ok, value}
+           }) do
+      Map.fetch(resp, "value")
+    end
   end
 
   @doc """
@@ -304,9 +307,9 @@ defmodule Wallaby.Webdriver.W3CClient do
                  ]
                }
              ]
-           }),
-         {:ok, value} <- Map.fetch(resp, "value"),
-         do: {:ok, value}
+           }) do
+      Map.fetch(resp, "value")
+    end
   end
 
   @doc """
@@ -324,9 +327,9 @@ defmodule Wallaby.Webdriver.W3CClient do
                  "actions" => [%{"type" => "pointerUp"}]
                }
              ]
-           }),
-         {:ok, value} <- Map.fetch(resp, "value"),
-         do: {:ok, value}
+           }) do
+      Map.fetch(resp, "value")
+    end
   end
 
   @doc """
@@ -348,9 +351,9 @@ defmodule Wallaby.Webdriver.W3CClient do
                  ]
                }
              ]
-           }),
-         {:ok, value} <- Map.fetch(resp, "value"),
-         do: {:ok, value}
+           }) do
+      Map.fetch(resp, "value")
+    end
   end
 
   @doc """
@@ -378,9 +381,9 @@ defmodule Wallaby.Webdriver.W3CClient do
                  ]
                }
              ]
-           }),
-         {:ok, value} <- Map.fetch(resp, "value"),
-         do: {:ok, value}
+           }) do
+      Map.fetch(resp, "value")
+    end
   end
 
   defp move_pointer_over_element_action(element) do
@@ -397,9 +400,9 @@ defmodule Wallaby.Webdriver.W3CClient do
   """
   @spec text(Element.t()) :: {:ok, String.t()}
   def text(element) do
-    with {:ok, resp} <- request(:get, "#{element.url}/text"),
-         {:ok, value} <- Map.fetch(resp, "value"),
-         do: {:ok, value}
+    with {:ok, resp} <- request(:get, "#{element.url}/text") do
+      Map.fetch(resp, "value")
+    end
   end
 
   @doc """
@@ -407,9 +410,9 @@ defmodule Wallaby.Webdriver.W3CClient do
   """
   @spec page_title(Session.t()) :: {:ok, String.t()}
   def page_title(session) do
-    with {:ok, resp} <- request(:get, "#{session.url}/title"),
-         {:ok, value} <- Map.fetch(resp, "value"),
-         do: {:ok, value}
+    with {:ok, resp} <- request(:get, "#{session.url}/title") do
+      Map.fetch(resp, "value")
+    end
   end
 
   @doc """
@@ -434,9 +437,9 @@ defmodule Wallaby.Webdriver.W3CClient do
   """
   @spec attribute_fallback(Element.t(), String.t()) :: {:ok, String.t()}
   def attribute_fallback(element, name) do
-    with {:ok, resp} <- request(:get, "#{element.url}/attribute/#{name}"),
-         {:ok, value} <- Map.fetch(resp, "value"),
-         do: {:ok, value}
+    with {:ok, resp} <- request(:get, "#{element.url}/attribute/#{name}") do
+      Map.fetch(resp, "value")
+    end
   end
 
   @doc """
@@ -446,9 +449,9 @@ defmodule Wallaby.Webdriver.W3CClient do
   """
   @spec property(Element.t(), String.t()) :: {:ok, String.t()}
   def property(element, name) do
-    with {:ok, resp} <- request(:get, "#{element.url}/property/#{name}"),
-         {:ok, value} <- Map.fetch(resp, "value"),
-         do: {:ok, value}
+    with {:ok, resp} <- request(:get, "#{element.url}/property/#{name}") do
+      Map.fetch(resp, "value")
+    end
   end
 
   @doc """
@@ -466,9 +469,9 @@ defmodule Wallaby.Webdriver.W3CClient do
   """
   @spec current_url(Session.t()) :: {:ok, String.t()} | {:error, any()}
   def current_url(session) do
-    with {:ok, resp} <- request(:get, "#{session.url}/url"),
-         {:ok, value} <- Map.fetch(resp, "value"),
-         do: {:ok, value}
+    with {:ok, resp} <- request(:get, "#{session.url}/url") do
+      Map.fetch(resp, "value")
+    end
   end
 
   @doc """
@@ -476,10 +479,9 @@ defmodule Wallaby.Webdriver.W3CClient do
   """
   @spec current_path(Session.t()) :: {:ok, String.t()} | {:error, any()}
   def current_path(session) do
-    with {:ok, url} <- current_url(session),
-         uri <- URI.parse(url),
-         {:ok, path} <- Map.fetch(uri, :path),
-         do: {:ok, path}
+    with {:ok, url} <- current_url(session) do
+      url |> URI.parse() |> Map.fetch(:path)
+    end
   end
 
   @doc """
@@ -490,9 +492,9 @@ defmodule Wallaby.Webdriver.W3CClient do
   """
   @spec selected(Element.t()) :: {:ok, boolean} | {:error, :stale_reference}
   def selected(element) do
-    with {:ok, resp} <- request(:get, "#{element.url}/selected"),
-         {:ok, value} <- Map.fetch(resp, "value"),
-         do: {:ok, value}
+    with {:ok, resp} <- request(:get, "#{element.url}/selected") do
+      Map.fetch(resp, "value")
+    end
   end
 
   @doc """
@@ -511,9 +513,9 @@ defmodule Wallaby.Webdriver.W3CClient do
   end
 
   defp displayed_using_endpoint(element) do
-    with {:ok, resp} <- request(:get, "#{element.url}/displayed"),
-         {:ok, value} <- Map.fetch(resp, "value"),
-         do: {:ok, value}
+    with {:ok, resp} <- request(:get, "#{element.url}/displayed") do
+      Map.fetch(resp, "value")
+    end
   end
 
   defp displayed_using_atom(element) do
@@ -529,9 +531,9 @@ defmodule Wallaby.Webdriver.W3CClient do
   """
   @spec size(Element.t()) :: {:ok, any}
   def size(element) do
-    with {:ok, resp} <- request(:get, "#{element.url}/size"),
-         {:ok, value} <- Map.fetch(resp, "value"),
-         do: {:ok, value}
+    with {:ok, resp} <- request(:get, "#{element.url}/size") do
+      Map.fetch(resp, "value")
+    end
   end
 
   @doc """
@@ -541,9 +543,21 @@ defmodule Wallaby.Webdriver.W3CClient do
   """
   @spec rect(Element.t()) :: {:ok, any}
   def rect(element) do
-    with {:ok, resp} <- request(:get, "#{element.url}/rect"),
-         {:ok, value} <- Map.fetch(resp, "value"),
-         do: {:ok, value}
+    with {:ok, resp} <- request(:get, "#{element.url}/rect") do
+      Map.fetch(resp, "value")
+    end
+  end
+
+  @spec element_size(Element.t()) :: {:ok, {number, number}}
+  def element_size(element) do
+    with {:ok, value} <- rect(element),
+         do: {:ok, {value["width"], value["height"]}}
+  end
+
+  @spec element_location(Element.t()) :: {:ok, {number, number}}
+  def element_location(element) do
+    with {:ok, value} <- rect(element),
+         do: {:ok, {value["x"], value["y"]}}
   end
 
   @doc """
@@ -552,9 +566,9 @@ defmodule Wallaby.Webdriver.W3CClient do
   @spec take_screenshot(Session.t() | Element.t()) :: binary
   def take_screenshot(session) do
     with {:ok, resp} <- request(:get, "#{session.session_url}/screenshot"),
-         {:ok, value} <- Map.fetch(resp, "value"),
-         decoded_value <- :base64.decode(value),
-         do: decoded_value
+         {:ok, value} <- Map.fetch(resp, "value") do
+      :base64.decode(value)
+    end
   end
 
   @doc """
@@ -562,20 +576,26 @@ defmodule Wallaby.Webdriver.W3CClient do
   """
   @spec cookies(Session.t()) :: {:ok, [map]}
   def cookies(session) do
-    with {:ok, resp} <- request(:get, "#{session.url}/cookie"),
-         {:ok, value} <- Map.fetch(resp, "value"),
-         do: {:ok, value}
+    with {:ok, resp} <- request(:get, "#{session.url}/cookie") do
+      Map.fetch(resp, "value")
+    end
   end
 
   @doc """
   Sets a cookie for the session.
   """
-  @spec set_cookie(Session.t(), String.t(), String.t()) :: {:ok, []}
-  def set_cookie(session, key, value) do
+  @spec set_cookie(Session.t(), String.t(), String.t(), keyword()) :: {:ok, []}
+  def set_cookie(session, key, value, attributes \\ []) do
+    cookie_params =
+      attributes
+      |> Keyword.take(~w[path domain secure httpOnly expiry sameSite]a)
+      |> Map.new()
+      |> Map.merge(%{name: key, value: value})
+
     with {:ok, resp} <-
-           request(:post, "#{session.url}/cookie", %{cookie: %{name: key, value: value}}),
-         {:ok, value} <- Map.fetch(resp, "value"),
-         do: {:ok, value}
+           request(:post, "#{session.url}/cookie", %{cookie: cookie_params}) do
+      Map.fetch(resp, "value")
+    end
   end
 
   @doc """
@@ -584,9 +604,9 @@ defmodule Wallaby.Webdriver.W3CClient do
   @spec set_window_size(parent, non_neg_integer, non_neg_integer) :: {:ok, map}
   def set_window_size(session, width, height) do
     with {:ok, resp} <-
-           request(:post, "#{session.url}/window/rect", %{width: width, height: height}),
-         {:ok, value} <- Map.fetch(resp, "value"),
-         do: {:ok, value}
+           request(:post, "#{session.url}/window/rect", %{width: width, height: height}) do
+      Map.fetch(resp, "value")
+    end
   end
 
   @doc """
@@ -594,9 +614,9 @@ defmodule Wallaby.Webdriver.W3CClient do
   """
   @spec get_window_size(parent) :: {:ok, map}
   def get_window_size(session) do
-    with {:ok, resp} <- request(:get, "#{session.url}/window/rect"),
-         {:ok, value} <- Map.fetch(resp, "value"),
-         do: {:ok, value}
+    with {:ok, resp} <- request(:get, "#{session.url}/window/rect") do
+      Map.fetch(resp, "value")
+    end
   end
 
   @doc """
@@ -605,9 +625,9 @@ defmodule Wallaby.Webdriver.W3CClient do
   @spec set_window_position(parent, non_neg_integer, non_neg_integer) :: {:ok, map}
   def set_window_position(session, x_coordinate, y_coordinate) do
     with {:ok, resp} <-
-           request(:post, "#{session.url}/window/rect", %{x: x_coordinate, y: y_coordinate}),
-         {:ok, value} <- Map.fetch(resp, "value"),
-         do: {:ok, value}
+           request(:post, "#{session.url}/window/rect", %{x: x_coordinate, y: y_coordinate}) do
+      Map.fetch(resp, "value")
+    end
   end
 
   @doc """
@@ -615,9 +635,9 @@ defmodule Wallaby.Webdriver.W3CClient do
   """
   @spec get_window_position(parent) :: {:ok, map}
   def get_window_position(session) do
-    with {:ok, resp} <- request(:get, "#{session.url}/window/rect"),
-         {:ok, value} <- Map.fetch(resp, "value"),
-         do: {:ok, value}
+    with {:ok, resp} <- request(:get, "#{session.url}/window/rect") do
+      Map.fetch(resp, "value")
+    end
   end
 
   @doc """
@@ -625,39 +645,39 @@ defmodule Wallaby.Webdriver.W3CClient do
   """
   @spec maximize_window(parent) :: {:ok, map}
   def maximize_window(session) do
-    with {:ok, resp} <- request(:post, "#{session.url}/window/maximize"),
-         {:ok, value} <- Map.fetch(resp, "value"),
-         do: {:ok, value}
+    with {:ok, resp} <- request(:post, "#{session.url}/window/maximize") do
+      Map.fetch(resp, "value")
+    end
   end
 
   @doc """
   Executes javascript synchronously, taking as arguments the script to execute,
   and optionally a list of arguments available in the script via `arguments`
   """
-  @spec execute_script(Session.t() | Element.t(), String.t(), Keyword.t()) :: {:ok, any}
+  @spec execute_script(Session.t() | Element.t(), String.t(), list()) :: {:ok, any}
   def execute_script(session, script, arguments \\ []) do
     with {:ok, resp} <-
            request(:post, "#{session.session_url}/execute/sync", %{
              script: script,
              args: arguments
-           }),
-         {:ok, value} <- Map.fetch(resp, "value"),
-         do: {:ok, value}
+           }) do
+      Map.fetch(resp, "value")
+    end
   end
 
   @doc """
   Executes asynchronous javascript, taking as arguments the script to execute,
   and optionally a list of arguments available in the script via `arguments`
   """
-  @spec execute_script_async(Session.t() | Element.t(), String.t(), Keyword.t()) :: {:ok, any}
+  @spec execute_script_async(Session.t() | Element.t(), String.t(), list()) :: {:ok, any}
   def execute_script_async(session, script, arguments \\ []) do
     with {:ok, resp} <-
            request(:post, "#{session.session_url}/execute/async", %{
              script: script,
              args: arguments
-           }),
-         {:ok, value} <- Map.fetch(resp, "value"),
-         do: {:ok, value}
+           }) do
+      Map.fetch(resp, "value")
+    end
   end
 
   @doc """
@@ -665,17 +685,21 @@ defmodule Wallaby.Webdriver.W3CClient do
   """
   @spec send_keys(Session.t(), [String.t() | atom]) :: {:ok, nil}
   def send_keys(%Session{} = session, keys) when is_list(keys) do
+    text = keys |> KeyCodes.json() |> Jason.decode!() |> Map.fetch!("value") |> Enum.join()
+
     with {:ok, resp} <-
-           request(:post, "#{session.session_url}/keys", KeyCodes.json(keys), encode_json: false),
-         {:ok, value} <- Map.fetch(resp, "value"),
-         do: {:ok, value}
+           request(:post, "#{session.session_url}/keys", %{text: text}) do
+      Map.fetch(resp, "value")
+    end
   end
 
   def send_keys(parent, keys) when is_list(keys) do
+    text = keys |> KeyCodes.json() |> Jason.decode!() |> Map.fetch!("value") |> Enum.join()
+
     with {:ok, resp} <-
-           request(:post, "#{parent.url}/value", KeyCodes.json(keys), encode_json: false),
-         {:ok, value} <- Map.fetch(resp, "value"),
-         do: {:ok, value}
+           request(:post, "#{parent.url}/value", %{text: text}) do
+      Map.fetch(resp, "value")
+    end
   end
 
   @doc """
@@ -683,9 +707,9 @@ defmodule Wallaby.Webdriver.W3CClient do
   """
   @spec log(Session.t() | Element.t()) :: {:ok, [map]}
   def log(session) do
-    with {:ok, resp} <- request(:post, "#{session.session_url}/log", %{type: "browser"}),
-         {:ok, value} <- Map.fetch(resp, "value"),
-         do: {:ok, value}
+    with {:ok, resp} <- request(:post, "#{session.session_url}/log", %{type: "browser"}) do
+      Map.fetch(resp, "value")
+    end
   end
 
   @doc """
@@ -693,9 +717,9 @@ defmodule Wallaby.Webdriver.W3CClient do
   """
   @spec page_source(Session.t()) :: {:ok, String.t()}
   def page_source(session) do
-    with {:ok, resp} <- request(:get, "#{session.url}/source"),
-         {:ok, value} <- Map.fetch(resp, "value"),
-         do: {:ok, value}
+    with {:ok, resp} <- request(:get, "#{session.url}/source") do
+      Map.fetch(resp, "value")
+    end
   end
 
   @doc """
@@ -703,9 +727,9 @@ defmodule Wallaby.Webdriver.W3CClient do
   """
   @spec window_handles(parent) :: {:ok, list(String.t())}
   def window_handles(session) do
-    with {:ok, resp} <- request(:get, "#{session.url}/window/handles"),
-         {:ok, value} <- Map.fetch(resp, "value"),
-         do: {:ok, value}
+    with {:ok, resp} <- request(:get, "#{session.url}/window/handles") do
+      Map.fetch(resp, "value")
+    end
   end
 
   @doc """
@@ -713,9 +737,9 @@ defmodule Wallaby.Webdriver.W3CClient do
   """
   @spec window_handle(parent) :: {:ok, String.t()}
   def window_handle(session) do
-    with {:ok, resp} <- request(:get, "#{session.url}/window"),
-         {:ok, value} <- Map.fetch(resp, "value"),
-         do: {:ok, value}
+    with {:ok, resp} <- request(:get, "#{session.url}/window") do
+      Map.fetch(resp, "value")
+    end
   end
 
   @doc """
@@ -726,20 +750,20 @@ defmodule Wallaby.Webdriver.W3CClient do
   """
   @spec focus_window(parent, String.t()) :: {:ok, map}
   def focus_window(session, window_handle_or_name) do
+    # In the Selenium WebDriver Protocol, the parameter is called name:
+    #  https://github.com/SeleniumHQ/selenium/wiki/JsonWireProtocol#sessionsessionidwindow
+    # In the new W3C protocol, the parameter is called handle:
+    #  https://w3c.github.io/webdriver/#switch-to-window
+    # Browsers are starting to support only the new W3C protocol,
+    # so we're adding `handle` as well to have it working until
+    # we implement a separate client module for the new protocol.
     with {:ok, resp} <-
            request(:post, "#{session.url}/window", %{
              name: window_handle_or_name,
              handle: window_handle_or_name
-           }),
-         # In the Selenium WebDriver Protocol, the parameter is called name:
-         #  https://github.com/SeleniumHQ/selenium/wiki/JsonWireProtocol#sessionsessionidwindow
-         # In the new W3C protocol, the parameter is called handle:
-         #  https://w3c.github.io/webdriver/#switch-to-window
-         # Browsers are starting to support only the new W3C protocol,
-         # so we're adding `handle` as well to have it working until
-         # we implement a separate client module for the new protocol.
-         {:ok, value} <- Map.fetch(resp, "value"),
-         do: {:ok, value}
+           }) do
+      Map.fetch(resp, "value")
+    end
   end
 
   @doc """
@@ -747,9 +771,9 @@ defmodule Wallaby.Webdriver.W3CClient do
   """
   @spec close_window(parent) :: {:ok, map}
   def close_window(session) do
-    with {:ok, resp} <- request(:delete, "#{session.url}/window"),
-         {:ok, value} <- Map.fetch(resp, "value"),
-         do: {:ok, value}
+    with {:ok, resp} <- request(:delete, "#{session.url}/window") do
+      Map.fetch(resp, "value")
+    end
   end
 
   @doc """
@@ -766,15 +790,15 @@ defmodule Wallaby.Webdriver.W3CClient do
                "ELEMENT" => frame_element.id,
                @web_element_identifier => frame_element.id
              }
-           }),
-         {:ok, value} <- Map.fetch(resp, "value"),
-         do: {:ok, value}
+           }) do
+      Map.fetch(resp, "value")
+    end
   end
 
   def focus_frame(session, frame) do
-    with {:ok, resp} <- request(:post, "#{session.url}/frame", %{id: frame}),
-         {:ok, value} <- Map.fetch(resp, "value"),
-         do: {:ok, value}
+    with {:ok, resp} <- request(:post, "#{session.url}/frame", %{id: frame}) do
+      Map.fetch(resp, "value")
+    end
   end
 
   @doc """
@@ -782,9 +806,9 @@ defmodule Wallaby.Webdriver.W3CClient do
   """
   @spec focus_parent_frame(parent) :: {:ok, map}
   def focus_parent_frame(session) do
-    with {:ok, resp} <- request(:post, "#{session.url}/frame/parent", %{"dummy" => "params"}),
-         {:ok, value} <- Map.fetch(resp, "value"),
-         do: {:ok, value}
+    with {:ok, resp} <- request(:post, "#{session.url}/frame/parent", %{"dummy" => "params"}) do
+      Map.fetch(resp, "value")
+    end
   end
 
   @spec cast_as_element(Session.t() | Element.t(), map) :: Element.t()
@@ -813,8 +837,8 @@ defmodule Wallaby.Webdriver.W3CClient do
   # Retrieves the text from an alert, prompt or confirm.
   @spec alert_text(Session.t()) :: {:ok, String.t()}
   defp alert_text(session) do
-    with {:ok, resp} <- request(:get, "#{session.url}/alert/text"),
-         {:ok, value} <- Map.fetch(resp, "value"),
-         do: {:ok, value}
+    with {:ok, resp} <- request(:get, "#{session.url}/alert/text") do
+      Map.fetch(resp, "value")
+    end
   end
 end

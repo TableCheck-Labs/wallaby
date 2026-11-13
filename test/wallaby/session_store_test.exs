@@ -15,7 +15,7 @@ defmodule Wallaby.SessionStoreTest do
   describe "monitor/1" do
     test "adds session to the store", %{session_store: session_store, table: table} do
       assert [] == SessionStore.list_sessions_for(name: table)
-      session = %Session{id: "foo"}
+      session = %Session{id: "foo", client: Wallaby.WebdriverClient}
       :ok = SessionStore.monitor(session_store, session)
 
       assert [_] = SessionStore.list_sessions_for(name: table)
@@ -23,7 +23,11 @@ defmodule Wallaby.SessionStoreTest do
 
     test "adds multiple sessions to store", %{session_store: session_store, table: table} do
       assert [] == SessionStore.list_sessions_for(name: table)
-      sessions = [%Session{id: "foo"}, %Session{id: "bar"}]
+
+      sessions = [
+        %Session{id: "foo", client: Wallaby.WebdriverClient},
+        %Session{id: "bar", client: Wallaby.WebdriverClient}
+      ]
 
       for session <- sessions do
         :ok = SessionStore.monitor(session_store, session)
@@ -42,7 +46,7 @@ defmodule Wallaby.SessionStoreTest do
       session_store: session_store,
       table: table
     } do
-      session = %Session{id: "foo"}
+      session = %Session{id: "foo", client: Wallaby.WebdriverClient}
       :ok = SessionStore.monitor(session_store, session)
       :ok = SessionStore.demonitor(session_store, session)
 
@@ -54,9 +58,9 @@ defmodule Wallaby.SessionStoreTest do
       table: table
     } do
       assert [] == SessionStore.list_sessions_for(name: table)
-      first = %Session{id: "foo"}
-      second = %Session{id: "bar"}
-      third = %Session{id: "baz"}
+      first = %Session{id: "foo", client: Wallaby.WebdriverClient}
+      second = %Session{id: "bar", client: Wallaby.WebdriverClient}
+      third = %Session{id: "baz", client: Wallaby.WebdriverClient}
       sessions = [first, second, third]
 
       for session <- sessions do
@@ -71,6 +75,44 @@ defmodule Wallaby.SessionStoreTest do
       refute Enum.member?(store, second)
       assert Enum.member?(store, third)
     end
+
+    test "flushes DOWN message when demonitoring", %{session_store: session_store, table: table} do
+      session = %Session{id: "session_to_flush", client: Wallaby.WebdriverClient}
+
+      test_pid = self()
+
+      owner_pid =
+        spawn(fn ->
+          :ok = SessionStore.monitor(session_store, session)
+          send(test_pid, :monitored)
+          receive do: (_ -> :ok)
+        end)
+
+      receive do
+        :monitored -> :ok
+      after
+        1000 -> flunk("Failed to monitor session")
+      end
+
+      # Suspend SessionStore so we can queue messages
+      :sys.suspend(session_store)
+
+      # We spawn a task because GenServer.call will block until SessionStore resumes
+      Task.async(fn ->
+        SessionStore.demonitor(session_store, session)
+      end)
+
+      Process.sleep(50)
+      Process.exit(owner_pid, :kill)
+      Process.sleep(50)
+      :sys.resume(session_store)
+
+      # Ensure all messages are processed (including potentially fatal DOWN)
+      :sys.get_state(session_store)
+
+      # Check if SessionStore is still working
+      assert [] == SessionStore.list_sessions_for(name: table)
+    end
   end
 
   test "removes sessions when the monitored process dies", %{
@@ -84,7 +126,7 @@ defmodule Wallaby.SessionStoreTest do
       for i <- 1..5 do
         spawn(fn ->
           for j <- 1..i do
-            session = %Session{id: "session#{i}#{j}"}
+            session = %Session{id: "session#{i}#{j}", client: Wallaby.WebdriverClient}
             :ok = SessionStore.monitor(session_store, session)
           end
 
@@ -100,7 +142,9 @@ defmodule Wallaby.SessionStoreTest do
         do:
           await(
             :monitor,
-            %{monitored_session: %Session{id: "session#{i}#{j}"}},
+            %{
+              monitored_session: %Session{id: "session#{i}#{j}", client: Wallaby.WebdriverClient}
+            },
             Wallaby.SessionStore
           )
 
@@ -120,7 +164,9 @@ defmodule Wallaby.SessionStoreTest do
         do:
           await(
             :DOWN,
-            %{monitored_session: %Session{id: "session#{i}#{j}"}},
+            %{
+              monitored_session: %Session{id: "session#{i}#{j}", client: Wallaby.WebdriverClient}
+            },
             Wallaby.SessionStore
           )
 

@@ -30,8 +30,7 @@ defmodule Wallaby.WebdriverClientTest do
         })
       end)
 
-      assert {:ok, response} = Client.create_session(base_url, capabilities)
-      assert %{"sessionId" => ^new_session_id} = response
+      assert {:ok, ^new_session_id} = Client.create_session(base_url, capabilities)
     end
   end
 
@@ -620,6 +619,46 @@ defmodule Wallaby.WebdriverClientTest do
       end)
 
       assert {:ok, []} = Client.set_cookie(session, key, value)
+    end
+  end
+
+  describe "set_cookie/4" do
+    test "sends the correct request to the server", %{bypass: bypass} do
+      session = build_session_for_bypass(bypass)
+      key = "tester"
+      value = "McTestington"
+      expiry = DateTime.utc_now() |> DateTime.to_unix() |> Kernel.+(1000)
+
+      Bypass.expect(bypass, "POST", "/session/#{session.id}/cookie", fn conn ->
+        conn = parse_body(conn)
+
+        assert conn.body_params == %{
+                 "cookie" => %{
+                   "name" => key,
+                   "value" => value,
+                   "path" => "/index.html",
+                   "domain" => "example.com",
+                   "secure" => true,
+                   "httpOnly" => true,
+                   "expiry" => expiry
+                 }
+               }
+
+        send_json_resp(conn, 200, %{
+          "sessionId" => session.id,
+          "status" => 0,
+          "value" => []
+        })
+      end)
+
+      assert {:ok, []} =
+               Client.set_cookie(session, key, value,
+                 path: "/index.html",
+                 domain: "example.com",
+                 secure: true,
+                 httpOnly: true,
+                 expiry: expiry
+               )
     end
   end
 

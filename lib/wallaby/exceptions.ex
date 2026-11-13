@@ -63,14 +63,6 @@ defmodule Wallaby.StaleReferenceError do
   end
 end
 
-defmodule Wallaby.InvalidSelectorError do
-  defexception [:message]
-
-  def exception(_) do
-    %__MODULE__{message: "Shit is broken and invalid yo"}
-  end
-end
-
 defmodule Wallaby.CookieError do
   defexception [:message]
 
@@ -80,7 +72,7 @@ defmodule Wallaby.CookieError do
 
     You're most likely seeing this error because you're trying to set a cookie before
     you have visited a page. You can fix this issue by calling `visit/1`
-    before you call `set_cookie/3`.
+    before you call `set_cookie/3` or `set_cookie/4`.
     """
 
     %__MODULE__{message: msg}
