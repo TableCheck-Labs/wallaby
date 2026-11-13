@@ -226,10 +226,9 @@ defmodule Wallaby.Selenium do
 
   @doc false
   def current_path(%Session{client: client} = session) do
-    with {:ok, url} <- client.current_url(session),
-         uri <- URI.parse(url),
-         {:ok, path} <- Map.fetch(uri, :path),
-         do: {:ok, path}
+    with {:ok, url} <- client.current_url(session) do
+      {:ok, URI.parse(url).path}
+    end
   end
 
   @doc false
@@ -318,7 +317,7 @@ defmodule Wallaby.Selenium do
 
   def send_keys(%Element{client: client} = element, keys) do
     keys =
-      case Enum.all?(keys, &is_local_file?(&1)) do
+      case Enum.all?(keys, &local_file?(&1)) do
         true ->
           keys
           |> Enum.map(fn key -> upload_file(element, key) end)
@@ -383,7 +382,7 @@ defmodule Wallaby.Selenium do
     end)
   end
 
-  defp is_local_file?(file) do
+  defp local_file?(file) do
     file
     |> keys_to_binary()
     |> File.exists?()

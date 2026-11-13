@@ -14,5 +14,14 @@ defmodule Wallaby.Session do
           capabilities: map()
         }
 
-  defstruct [:id, :url, :session_url, :driver, :client, :capabilities, server: :none, screenshots: []]
+  defstruct [
+    :id,
+    :url,
+    :session_url,
+    :driver,
+    :client,
+    :capabilities,
+    server: :none,
+    screenshots: []
+  ]
 end

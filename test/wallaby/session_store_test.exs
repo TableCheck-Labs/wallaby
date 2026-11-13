@@ -23,7 +23,11 @@ defmodule Wallaby.SessionStoreTest do
 
     test "adds multiple sessions to store", %{session_store: session_store, table: table} do
       assert [] == SessionStore.list_sessions_for(name: table)
-      sessions = [%Session{id: "foo", client: Wallaby.WebdriverClient}, %Session{id: "bar", client: Wallaby.WebdriverClient}]
+
+      sessions = [
+        %Session{id: "foo", client: Wallaby.WebdriverClient},
+        %Session{id: "bar", client: Wallaby.WebdriverClient}
+      ]
 
       for session <- sessions do
         :ok = SessionStore.monitor(session_store, session)
@@ -138,7 +142,9 @@ defmodule Wallaby.SessionStoreTest do
         do:
           await(
             :monitor,
-            %{monitored_session: %Session{id: "session#{i}#{j}", client: Wallaby.WebdriverClient}},
+            %{
+              monitored_session: %Session{id: "session#{i}#{j}", client: Wallaby.WebdriverClient}
+            },
             Wallaby.SessionStore
           )
 
@@ -158,7 +164,9 @@ defmodule Wallaby.SessionStoreTest do
         do:
           await(
             :DOWN,
-            %{monitored_session: %Session{id: "session#{i}#{j}", client: Wallaby.WebdriverClient}},
+            %{
+              monitored_session: %Session{id: "session#{i}#{j}", client: Wallaby.WebdriverClient}
+            },
             Wallaby.SessionStore
           )
 
